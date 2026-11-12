@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Build the FMini-1 firmware with the AP panel mode and upload the .fwsc
+# files as workflow artifacts (download from the run page's Artifacts).
+name: Build fwsc
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python packages
+        run: pip install Pillow fonttools
+
+      - name: JieLi toolchain and AC79 SDK
+        run: |
+          tools/get_toolchain.sh
+          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
+
+      - name: Build the firmware (FM-1)
+        run: ./build.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fmini-1-fwsc
+          path: build/*.fwsc
+          if-no-files-found: error
