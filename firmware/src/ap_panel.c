@@ -30,7 +30,7 @@ static uint32_t ap_popup_until;
 static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19};
 static const uint8_t AP_CC[4] = {20, 21, 22, 23};   /* HDG ALT SPD VS */
 static const char *const AP_LBL[AP_SW_N] = {
-    "AP", "FD", "AT", "NV", "VN", "HD", "AL", "VS", "SP", "LC", "PR", "MA"};
+    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
 static const char *const AP_NAME[AP_SW_N] = {
     "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
 static const char *const AP_KNB[4] = {"HDG", "ALT", "SPD", "VS"};
