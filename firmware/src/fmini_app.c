@@ -1919,6 +1919,7 @@ static uint32_t fa_signature(void)
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
     h = (h ^ fa_tp ^ (uint32_t)fa_clk << 1) * 16777619u;
+    h = (h ^ (uint32_t)fa_scp << 2 ^ (uint32_t)fa_scp_row << 4) * 16777619u;   /* the SCALE pop-up: open/close, the row */
 #if BOARD_SMK37
     h = (h ^ smk_out_mode ^ (uint32_t)smk_out_ch << 2) * 16777619u;   /* MIDI OUT, MIDI OUT CH */
 #endif
