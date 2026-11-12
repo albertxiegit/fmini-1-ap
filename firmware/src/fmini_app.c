@@ -1062,6 +1062,14 @@ static uint16_t fa_tune_hz = 440;                         /* TUNING: the referen
 static const int16_t FA_TUNE_C[61] = {-122, -118, -114, -110, -105, -101, -97, -93, -89, -85, -81, -76, -72, -68, -64, -60, -56, -52, -48, -44, -40, -36, -32, -28, -24, -20, -16, -12, -8, -4, 0, 4, 8, 12, 16, 20, 23, 27, 31, 35, 39, 43, 47, 50, 54, 58, 62, 66, 69, 73, 77, 81, 84, 88, 92, 96, 99, 103, 107, 111, 114};
 static uint8_t fa_clk;                                    /* MIDI CLOCK: 0 OFF (internal), 1 USB, 2 TRS: the global CLK */
 static const char *const FA_CLK[3] = {"OFF", "USB", "TRS"};
+/* the SCALE pop-up (SCL held ~0.6 s): the selected track's ROOT and SCALE (what the scale LEDs, the chords
+ * and the quantize use) and the scale LEDS switch (upstream's MENU > SCALE LEDS bit; there is no MENU here) */
+static const char *const FA_NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+static const char *const FA_SCL_NAME[6] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN"};
+static uint8_t fa_scp;                                    /* 0 closed, 1 the list */
+static uint8_t fa_scp_row;                                /* 0 ROOT, 1 SCALE, 2 LEDS */
+static uint8_t fa_scl_down, fa_scl_done;
+static uint32_t fa_scl_t0;
 #if BOARD_SMK37
 #define FA_NCLK 2u                                        /* SMK-37: OFF, USB (no MIDI IN on its jack) */
 #define FA_MS_N 6u                                        /* MIDI SETTINGS' lines */
@@ -1554,6 +1562,15 @@ static void fa_pset_rows(void)                           /* PRESET SETTINGS: its
 static void fa_gl_dialog(void)
 {
     char b[24];
+    if (fa_scp) {                                         /* the SCALE pop-up: the key, the scale and the LEDS */
+        track_t *t = TSEL;
+        fa_frame("SCALE");
+        fa_line(62, "ROOT", FA_NOTE[(uint32_t)t->p[P_ROOT] % 12u], fa_scp_row == 0u);
+        fa_line(79, "SCALE", FA_SCL_NAME[clamp(t->p[P_SCALE], 0, 5)], fa_scp_row == 1u);
+        fa_line(96, "LEDS", ui_rec_prefs & (PREF_SCALE_LEDS >> 8) ? "ON" : "OFF", fa_scp_row == 2u);
+        fa_ctext(120, 199, &AF_S, FA_SEL "  " FA_ALG "  " FA_SCL "=BACK", FA_MU);
+        return;
+    }
     if (fa_gl == 7u) {                                    /* PRESET SETTINGS (over FILT) */
         fa_frame("PRESET SETTINGS");
         fa_pset_rows();
@@ -1850,6 +1867,8 @@ static void fa_scene(void)
     else if (fa_gl == 5u)
         fa_mon_dialog();
     else if (fa_gl == 1u || fa_gl == 2u || fa_gl == 4u || fa_gl == 7u)
+        fa_gl_dialog();
+    else if (fa_scp)
         fa_gl_dialog();
     else if (fa_sc)
         fa_sc_dialog();
@@ -2342,6 +2361,16 @@ static void fa_buttons(uint32_t pressed)
 {
     static const uint8_t PG_BTN[5] = {B_LFO, B_EDIT, B_SCL, B_FX, B_ENV};   /* (GLO: global, ARP, SEQ, REC, PLAY: their own) */
     uint32_t i;
+    if (fa_scp) {                                         /* the SCALE pop-up: SCL again closes it; any other key closes
+                                                           * it and does its own thing */
+        if ((pressed >> panel.btn[B_SCL]) & 1u) {
+            fa_scp = 0;
+            fa_cfg_save();                                /* (the LEDS bit lives in the settings record) */
+            return;
+        }
+        if (pressed)
+            fa_scp = 0;
+    }
     if (fa_gl == 6u && pressed) {                         /* SUPPORT: any key goes back to GLOBAL */
         fa_gl = 1u;
         fa_gl_row = 5u;
@@ -2412,6 +2441,22 @@ static void fa_buttons(uint32_t pressed)
         } else
             fa_gl_close();
         return;
+    }
+    {   /* SCL held ~0.6 s: the SCALE pop-up (a tap is the page, as ever; the page underneath stays open) */
+        uint32_t down = (fm1_in.buttons >> panel.btn[B_SCL]) & 1u;
+        if ((pressed >> panel.btn[B_SCL]) & 1u) {
+            fa_scl_down = 1;
+            fa_scl_done = 0;
+            fa_scl_t0 = fm1_ms;
+        } else if (fa_scl_down) {
+            if (!down)
+                fa_scl_down = 0;
+            else if (!fa_scl_done && (uint32_t)(fm1_ms - fa_scl_t0) >= 600u) {
+                fa_scl_done = 1;
+                fa_scp = 1u;
+                fa_scp_row = 0u;
+            }
+        }
     }
     {   /* ARP: a tap turns the arpeggiator on / off (the button lights); held, HOLD on / off. The pop-up shows it.
          * With the pop-up closed and the arpeggiator on, a tap only opens the pop-up: the arpeggio stays on */
@@ -2916,6 +2961,25 @@ static void fa_input(void)
         }
         if (panel_enc(EN_ALGO) != 0)
             fa_mon_close();
+        return;
+    }
+    if (fa_scp) {                                         /* the SCALE pop-up: SELECT the row, ALGO its value */
+        track_t *t = TSEL;
+        for (k = 0; k < 4u; k++)
+            (void)panel_enc(EN_K1 + k);
+        (void)panel_enc(EN_PRESET);
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            fa_scp_row = (uint8_t)((fa_scp_row + 3u + (s > 0 ? 1u : 2u)) % 3u);
+        if ((s = panel_enc(EN_ALGO)) != 0) {
+            if (fa_scp_row == 0u)                          /* ROOT: C .. B */
+                t->p[P_ROOT] = (int16_t)(((int32_t)t->p[P_ROOT] % 12 + 12 + (s > 0 ? 1 : 11)) % 12);
+            else if (fa_scp_row == 1u)                     /* SCALE: CHR MAJ MIN DOR MIX PEN */
+                t->p[P_SCALE] = (int16_t)(((int32_t)t->p[P_SCALE] % 6 + 6 + (s > 0 ? 1 : 5)) % 6);
+            else {
+                ui_rec_prefs ^= (uint8_t)(PREF_SCALE_LEDS >> 8);   /* the scale LEDS on / off */
+                fa_cfg_dirty = 1;
+            }
+        }
         return;
     }
     if (fa_gl) {                                          /* the GLO pop-up (the page's knobs wait) */
