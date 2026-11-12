@@ -3174,6 +3174,21 @@ static void fa_leds(void)
     c = fm1_in.notes | fa_sound_keys();                     /* the keys held, and the notes sounding: arpeggio, sequence, MIDI */
     for (k = 0; k < 27u; k++)
         led_put(nl, LED_KEY0 + k, (int)((c >> k) & 1u));
+#if !BOARD_SMK37
+    {                           /* the scale assistant (1.2's SCALE LEDS, ui_input.c scale_leds): the selected
+                                 * track's scale keys glow, its root's keys at the brighter mid level, the keys
+                                 * outside the scale go dark (the held and sounding keys stay lit). MENU > SCALE
+                                 * LEDS turns it on; the AP panel mode returns above and keeps its own picture */
+        uint32_t sr, sc = scale_leds(&sr);
+        if (sc)
+            for (k = 0; k < 27u; k++) {
+                uint32_t in = (sc >> k) & 1u;
+                led_put(nm, LED_KEY0 + k, (int)(in && ((sr >> k) & 1u)));
+                if (!in && !((c >> k) & 1u))
+                    led_clear(nd, LED_KEY0 + k);
+            }
+    }
+#endif
 #if BOARD_SMK37
     {
         static const uint8_t Z[LED_BUF];                    /* (no DRUM-grid lanes, no SCALE LEDS on FMini-1) */
