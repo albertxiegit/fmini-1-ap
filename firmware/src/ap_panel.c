@@ -105,7 +105,7 @@ void ap_mode_tick(uint32_t pressed)
 
 uint8_t ap_popup_on(void)
 {
-    return ap_popup != 0xFFFFu && (uint32_t)(fm1_ms - ap_popup_until) < 0x80000000u;
+    return ap_popup != 0xFFFFu && (uint32_t)(fm1_ms - ap_popup_until) >= 0x80000000u;
 }
 
 /* K1..K4 stream relative CC 20..23 (holding OCT- x10) so the bridge echoes
