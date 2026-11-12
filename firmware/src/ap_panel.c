@@ -290,7 +290,9 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
             ap_tc(120, 30, &AF_M, AP_KNB[ap_popup], AP_C_TXT);
             ap_num(b, values[ap_popup]);
             n = ap_seg_count(b);
-            w = (224 - (n - 1) * 8) / n;    /* 5 chars still fit: 38 px wide each */
+            w = (224 - (n - 1) * 8) / n;    /* shrink only when needed: 1..3 digits keep the 3-digit cell */
+            if (w > 69)
+                w = 69;
             ap_seg_at((240 - ap_seg_w(n, w, 8)) / 2, 72, w, 110, 8, b, AP_C_NUM);
         } else {
             unsigned on;
