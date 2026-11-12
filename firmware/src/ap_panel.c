@@ -35,10 +35,10 @@ static const char *const AP_NAME[AP_SW_N] = {
     "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
 static const char *const AP_KNB[4] = {"HDG", "ALT", "SPD", "VS"};
 
-/* A320 FCU colours (RGB565): the numbers in yellow on black, the labels dim */
+/* A320 FCU colours (RGB565): amber digits on black, white labels, like the FCU */
 #define AP_C_BG  0x0000u
-#define AP_C_NUM 0xFFE0u            /* the big seven-segment values: yellow */
-#define AP_C_ON  0xFFE0u            /* a switch that is on */
+#define AP_C_NUM 0xFE60u            /* the big seven-segment values: amber yellow */
+#define AP_C_ON  0xFE60u            /* a switch that is on */
 #define AP_C_OFF 0x52AAu            /* a switch that is off / the dim labels */
 #define AP_C_TXT 0xD69Au            /* the small white-grey text */
 #define AP_C_OK  0x07E0u            /* BRIDGE */
@@ -234,7 +234,15 @@ static int32_t ap_seg_count(const char *s)
 
 static void ap_seg_at(int32_t x, int32_t y, int32_t w, int32_t h, int32_t gap, const char *s, uint16_t c)
 {
-    int32_t t = w / 3u < 4 ? 4 : w / 3u, vh = (h - 3 * t) / 2, y2 = y + t + vh;
+    /* the FCU's stroke is thin: about a ninth of the digit's height, and never
+     * a third of its width (the 5-digit popup cells are much narrower) */
+    int32_t t = h / 9u, t2 = w / 5u, vh, y2;
+    if (t2 < t)
+        t = t2;
+    if (t < 2)
+        t = 2;
+    vh = (h - 3 * t) / 2;
+    y2 = y + t + vh;
     for (; *s; s++, x += w + gap) {
         uint8_t sg = 0;
         if (*s == '-')
@@ -258,14 +266,14 @@ static int32_t ap_seg_w(int32_t n, int32_t w, int32_t gap)
     return n * (w + gap) - gap;
 }
 
-/* the four value rows: the label small and dim at the left, the number in
- * seven-segment yellow right-aligned at the screen's right edge */
+/* the four value rows: the label small and white at the left, the number in
+ * seven-segment amber right-aligned at the screen's right edge */
 static void ap_value_row(int32_t y, const char *label, int32_t v)
 {
     char b[8];
-    ap_tx(8, y + 12, &AF_S, label, AP_C_OFF);
+    ap_tx(8, y + 10, &AF_S, label, AP_C_TXT);
     ap_num(b, v);
-    ap_seg_at(236 - ap_seg_w(ap_seg_count(b), 28, 6), y, 28, 38, 6, b, AP_C_NUM);
+    ap_seg_at(234 - ap_seg_w(ap_seg_count(b), 16, 3), y, 16, 30, 3, b, AP_C_NUM);
 }
 
 static void ap_scene(void)                  /* absolute coordinates 0..239 */
@@ -279,11 +287,11 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
             values[1] = ap_state.alt;
             values[2] = ap_state.spd;
             values[3] = ap_state.vs;
-            ap_tc(120, 26, &AF_M, AP_KNB[ap_popup], AP_C_TXT);
+            ap_tc(120, 30, &AF_M, AP_KNB[ap_popup], AP_C_TXT);
             ap_num(b, values[ap_popup]);
             n = ap_seg_count(b);
             w = (224 - (n - 1) * 8) / n;    /* 5 chars still fit: 38 px wide each */
-            ap_seg_at((240 - ap_seg_w(n, w, 8)) / 2, 66, w, 116, 8, b, AP_C_NUM);
+            ap_seg_at((240 - ap_seg_w(n, w, 8)) / 2, 72, w, 110, 8, b, AP_C_NUM);
         } else {
             unsigned on;
             i = ap_popup - AP_SW_N;
@@ -298,11 +306,11 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
     ap_tx(8, 4, &AF_S, "AP PANEL", AP_C_OFF);
     ap_tr(232, 4, &AF_S, online ? "BRIDGE" : "OFFLINE", online ? AP_C_OK : AP_C_BAD);
     ap_value_row(22, "HDG", actual ? ap_state.hdg_act : ap_state.hdg);
-    ap_value_row(68, "ALT", actual ? ap_state.alt_act : ap_state.alt);
-    ap_value_row(114, "SPD", actual ? ap_state.ias : ap_state.spd);
-    ap_value_row(160, "VS", actual ? ap_state.vs_act : ap_state.vs);
+    ap_value_row(66, "ALT", actual ? ap_state.alt_act : ap_state.alt);
+    ap_value_row(110, "SPD", actual ? ap_state.ias : ap_state.spd);
+    ap_value_row(154, "VS", actual ? ap_state.vs_act : ap_state.vs);
     for (i = 0; i < AP_SW_N; i++)
-        ap_tx(8 + (int32_t)(i % 6u) * 38, 202 + (i / 6u) * 14, &AF_X, AP_LBL[i],
+        ap_tx(8 + (int32_t)(i % 6u) * 38, 198 + (i / 6u) * 14, &AF_X, AP_LBL[i],
               (ap_state.flags >> i) & 1u ? AP_C_ON : AP_C_OFF);
 }
 
