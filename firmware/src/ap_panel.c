@@ -22,9 +22,12 @@ static uint16_t ap_popup;                   /* 0xffff none; 0..3 a knob, 12+i a 
 static uint32_t ap_popup_until;
 
 #define AP_SW_N 12u
-/* the switches sit on every other key: 12 of the 27 note keys (fm1_open's
- * ap_panel_keys[]) */
-static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22};
+/* the switches sit on 12 white keys of the 27 (the black keys keep their
+ * printed letters clear for the AP button overlay). The keyboard is F3..G5,
+ * so the whites are F G A B | C D E F G A B | C D E F G: taking the first
+ * twelve gives F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 and the bridge's
+ * NOTE_EVENTS follow the same order (notes 48,50,52,54,55,57,59,60,62,64,66,67). */
+static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19};
 static const uint8_t AP_CC[4] = {20, 21, 22, 23};   /* HDG ALT SPD VS */
 static const char *const AP_LBL[AP_SW_N] = {
     "AP", "FD", "AT", "NV", "VN", "HD", "AL", "VS", "SP", "LC", "PR", "MA"};
@@ -32,13 +35,14 @@ static const char *const AP_NAME[AP_SW_N] = {
     "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
 static const char *const AP_KNB[4] = {"HDG", "ALT", "SPD", "VS"};
 
-/* the page's flat colours (RGB565; the panel's base is FA_RGB(0x17,0x15,0x13)) */
-#define AP_C_BG  0x40A2u
-#define AP_C_NUM 0xEF3Cu            /* the big values */
-#define AP_C_ON  0x3668u            /* a switch that is on */
-#define AP_C_OFF 0x6B4Cu            /* a switch that is off / the dim labels */
-#define AP_C_AMB 0xFD80u            /* the VS row, like the fm1_open panel */
-#define AP_C_BAD 0xFB08u            /* no bridge frames */
+/* A320 FCU colours (RGB565): the numbers in yellow on black, the labels dim */
+#define AP_C_BG  0x0000u
+#define AP_C_NUM 0xFFE0u            /* the big seven-segment values: yellow */
+#define AP_C_ON  0xFFE0u            /* a switch that is on */
+#define AP_C_OFF 0x52AAu            /* a switch that is off / the dim labels */
+#define AP_C_TXT 0xD69Au            /* the small white-grey text */
+#define AP_C_OK  0x07E0u            /* BRIDGE */
+#define AP_C_BAD 0xF800u            /* no bridge frames */
 
 static uint32_t ap_unpack3(const uint8_t *p)
 {
@@ -215,47 +219,90 @@ static void ap_num(char *b, int32_t v)
     *b = 0;
 }
 
-static void ap_value_row(int32_t y, const char *label, int32_t v, uint16_t c)
+/* ---- the seven-segment digits (the A320 number-tube look) -------------- */
+/* bars are plain cv_rect's: a/b/c/d/e/f/g in bits 0..6; the verticals overlap
+ * the horizontals so the joints are solid. vh is one vertical bar's length. */
+static const uint8_t AP_SEG[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+
+static int32_t ap_seg_count(const char *s)
+{
+    int32_t n = 0;
+    while (*s)
+        n++, s++;
+    return n;
+}
+
+static void ap_seg_at(int32_t x, int32_t y, int32_t w, int32_t h, int32_t gap, const char *s, uint16_t c)
+{
+    int32_t t = w / 3u < 4 ? 4 : w / 3u, vh = (h - 3 * t) / 2, y2 = y + t + vh;
+    for (; *s; s++, x += w + gap) {
+        uint8_t sg = 0;
+        if (*s == '-')
+            sg = 0x40u;
+        else if (*s >= '0' && *s <= '9')
+            sg = AP_SEG[*s - '0'];
+        if (!sg)
+            continue;
+        if (sg & 0x01u) cv_rect(x + t, y, w - 2 * t, t, c);              /* a  top */
+        if (sg & 0x40u) cv_rect(x + t, y2, w - 2 * t, t, c);             /* g  middle */
+        if (sg & 0x08u) cv_rect(x + t, y + h - t, w - 2 * t, t, c);      /* d  bottom */
+        if (sg & 0x20u) cv_rect(x, y + t, t, vh, c);                     /* f  upper left */
+        if (sg & 0x02u) cv_rect(x + w - t, y + t, t, vh, c);             /* b  upper right */
+        if (sg & 0x10u) cv_rect(x, y2 + t, t, vh, c);                    /* e  lower left */
+        if (sg & 0x04u) cv_rect(x + w - t, y2 + t, t, vh, c);            /* c  lower right */
+    }
+}
+
+static int32_t ap_seg_w(int32_t n, int32_t w, int32_t gap)
+{
+    return n * (w + gap) - gap;
+}
+
+/* the four value rows: the label small and dim at the left, the number in
+ * seven-segment yellow right-aligned at the screen's right edge */
+static void ap_value_row(int32_t y, const char *label, int32_t v)
 {
     char b[8];
-    ap_tx(8, y, &AF_M, label, AP_C_OFF);
+    ap_tx(8, y + 12, &AF_S, label, AP_C_OFF);
     ap_num(b, v);
-    ap_tx(96, y, &AF_L, b, c);
+    ap_seg_at(236 - ap_seg_w(ap_seg_count(b), 28, 6), y, 28, 38, 6, b, AP_C_NUM);
 }
 
 static void ap_scene(void)                  /* absolute coordinates 0..239 */
 {
     unsigned online = ap_online(), actual = online && ap_state.has_actual, i;
-    if (ap_popup_on()) {                    /* the touched control, big */
+    if (ap_popup_on()) {                    /* the touched control, nearly the full screen */
         if (ap_popup < 4u) {
-            int32_t values[4];
+            int32_t values[4], n, w;
             char b[8];
             values[0] = ap_state.hdg;
             values[1] = ap_state.alt;
             values[2] = ap_state.spd;
             values[3] = ap_state.vs;
-            ap_tc(120, 84, &AF_M, AP_KNB[ap_popup], AP_C_NUM);
+            ap_tc(120, 26, &AF_M, AP_KNB[ap_popup], AP_C_TXT);
             ap_num(b, values[ap_popup]);
-            ap_tc(120, 116, &AF_L, b, AP_C_NUM);
+            n = ap_seg_count(b);
+            w = (224 - (n - 1) * 8) / n;    /* 5 chars still fit: 38 px wide each */
+            ap_seg_at((240 - ap_seg_w(n, w, 8)) / 2, 66, w, 116, 8, b, AP_C_NUM);
         } else {
             unsigned on;
             i = ap_popup - AP_SW_N;
             on = (ap_state.flags >> i) & 1u;
-            ap_tc(120, 84, &AF_M, AP_NAME[i], on ? AP_C_ON : AP_C_NUM);
-            ap_tc(120, 116, &AF_L, on ? "ON" : "OFF", on ? AP_C_ON : AP_C_OFF);
+            ap_tc(120, 74, &AF_L, AP_NAME[i], on ? AP_C_ON : AP_C_TXT);
+            ap_tc(120, 118, &AF_L, on ? "ON" : "OFF", on ? AP_C_ON : AP_C_OFF);
         }
         return;
     }
     /* normal view: actual flight data at large size; targets only when no
      * bridge is feeding actuals (offline editing) */
     ap_tx(8, 4, &AF_S, "AP PANEL", AP_C_OFF);
-    ap_tr(232, 4, &AF_S, online ? "BRIDGE" : "OFFLINE", online ? AP_C_ON : AP_C_BAD);
-    ap_value_row(30, "HDG", actual ? ap_state.hdg_act : ap_state.hdg, AP_C_NUM);
-    ap_value_row(74, "ALT", actual ? ap_state.alt_act : ap_state.alt, AP_C_NUM);
-    ap_value_row(118, "SPD", actual ? ap_state.ias : ap_state.spd, AP_C_NUM);
-    ap_value_row(162, "VS", actual ? ap_state.vs_act : ap_state.vs, AP_C_AMB);
+    ap_tr(232, 4, &AF_S, online ? "BRIDGE" : "OFFLINE", online ? AP_C_OK : AP_C_BAD);
+    ap_value_row(22, "HDG", actual ? ap_state.hdg_act : ap_state.hdg);
+    ap_value_row(68, "ALT", actual ? ap_state.alt_act : ap_state.alt);
+    ap_value_row(114, "SPD", actual ? ap_state.ias : ap_state.spd);
+    ap_value_row(160, "VS", actual ? ap_state.vs_act : ap_state.vs);
     for (i = 0; i < AP_SW_N; i++)
-        ap_tx(8 + (int32_t)(i % 6u) * 38, 212 + (i / 6u) * 14, &AF_S, AP_LBL[i],
+        ap_tx(8 + (int32_t)(i % 6u) * 38, 202 + (i / 6u) * 14, &AF_X, AP_LBL[i],
               (ap_state.flags >> i) & 1u ? AP_C_ON : AP_C_OFF);
 }
 
