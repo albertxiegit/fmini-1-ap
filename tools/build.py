@@ -73,10 +73,12 @@ CPU2 = os.environ.get("FELUCCA_CPU2") != "0"
 
 def toolchain():
     tc = os.environ.get("JIELI_TOOLCHAIN")
-    if not tc or not (Path(tc) / "pi32v2" / "bin" / "clang").exists():
-        raise SystemExit("JIELI_TOOLCHAIN must point at the JieLi Linux toolchain "
-                         "(the directory with pi32v2/ and common/; see tools/get_toolchain.sh)")
-    return Path(tc).resolve()
+    p = Path(tc) if tc else None
+    if p and ((p / "pi32v2" / "bin" / "clang").exists() or          # the Linux layout
+              (p / "pi32v2" / "bin" / "clang.exe").exists()):       # the Windows toolchain (C:\JL\pi32 shimmed)
+        return p.resolve()
+    raise SystemExit("JIELI_TOOLCHAIN must point at the JieLi toolchain "
+                     "(pi32v2/bin/clang; see tools/get_toolchain.sh)")
 
 
 def use_docker():
@@ -93,7 +95,10 @@ def tc(tool, *args):
         cmd = ["docker", "run", "--rm", "--platform", "linux/amd64", "-v", f"{SRC}:/work",
                "-v", f"{toolchain()}:/opt/jieli:ro", "-w", "/work", DOCKER_IMAGE, f"/opt/jieli/{tool}", *rel]
     else:
-        cmd = [str(toolchain() / tool), *rel]
+        exe = toolchain() / tool
+        if not exe.exists() and os.name == "nt":
+            exe = Path(str(exe) + ".exe")               # the Windows toolchain's binaries end in .exe
+        cmd = [str(exe), *rel]
     r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
     if r.returncode:
         sys.stderr.write(r.stdout + r.stderr)

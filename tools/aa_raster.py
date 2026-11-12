@@ -18,7 +18,10 @@ uneven (text_spacing_test.py measures it).
 import os
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, features
+
+HAVE_RAQM = features.check("raqm")     # the Windows Pillow wheels ship without libraqm: fall back to basic
+                                       # layout (no OpenType kerning / tnum; the screen output is near identical)
 
 
 def open_font(spec, px):
@@ -28,7 +31,8 @@ def open_font(spec, px):
     path = os.path.expanduser(path)
     if not os.path.exists(path):
         raise SystemExit(f"font not found: {path}")
-    f = ImageFont.truetype(path, px, index=int(idx) if idx else 0, layout_engine=ImageFont.Layout.RAQM)
+    engine = ImageFont.Layout.RAQM if HAVE_RAQM else ImageFont.Layout.BASIC
+    f = ImageFont.truetype(path, px, index=int(idx) if idx else 0, layout_engine=engine)
     if wght:
         f.set_variation_by_axes([float(wght)])
     return f
@@ -49,7 +53,8 @@ def pack(nibbles):
 def render_cell(font, ch, size, ox, oy, features=None, anchor="ls"):
     """one character drawn at (ox, oy) on a size x size L image (anchor: baseline-left by default)."""
     img = Image.new("L", size, 0)
-    ImageDraw.Draw(img).text((ox, oy), ch, font=font, fill=255, anchor=anchor, features=features)
+    ImageDraw.Draw(img).text((ox, oy), ch, font=font, fill=255, anchor=anchor,
+                             features=features if HAVE_RAQM else None)
     return img
 
 
@@ -119,7 +124,7 @@ def raster_font(spec, px, chars, tracking=0.0, gamma=1.0, tabular=True, kern_min
     pad = px                                   # canvas margin around the glyph (overhang, accents)
     cw, chh = px * 3, asc + desc + 2 * pad
     base = pad + asc                           # baseline row of the canvas
-    feats = ["tnum"] if tabular else None
+    feats = ["tnum"] if tabular and HAVE_RAQM else None
     glyphs, adv, nat = {}, {}, {}
     for ch in chars:
         f = feats if ch.isdigit() else None
