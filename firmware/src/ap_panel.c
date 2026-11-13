@@ -45,6 +45,8 @@ static const char *const AP_KNB[4] = {"HDG", "ALT", "SPD", "VS"};
 #define AP_C_TXT 0xD69Au            /* the small white-grey text */
 #define AP_C_OK  0x07E0u            /* BRIDGE */
 #define AP_C_BAD 0xF800u            /* no bridge frames */
+#define AP_C_WHT 0xFFFFu            /* a switch that is off: white, as bright as an on one (2.5.14) */
+#define AP_C_GRN 0x07E0u            /* a switch that is on: the brightest green (2.5.14) */
 
 static uint32_t ap_unpack3(const uint8_t *p)
 {
@@ -229,7 +231,7 @@ static void ap_num(char *b, int32_t v)
 static void ap_value_row(int32_t y, const char *label, int32_t v)
 {
     char b[8];
-    ap_tx(8, y + 9, &AF_S, label, AP_C_TXT);
+    ap_tx(8, y + 3, &AF_L, label, AP_C_NUM);   /* the label at the digits' size (AF_L 21 of AF_D's 28), same amber */
     ap_num(b, v);
     ap_tr(232, y, &AF_D, b, AP_C_NUM);
 }
@@ -252,8 +254,8 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
             unsigned on;
             i = ap_popup - AP_SW_N;
             on = (ap_state.flags >> i) & 1u;
-            ap_tc(120, 74, &AF_L, AP_NAME[i], on ? AP_C_ON : AP_C_TXT);
-            ap_tc(120, 118, &AF_L, on ? "ON" : "OFF", on ? AP_C_ON : AP_C_OFF);
+            ap_tc(120, 74, &AF_L, AP_NAME[i], on ? AP_C_GRN : AP_C_WHT);
+            ap_tc(120, 118, &AF_L, on ? "ON" : "OFF", on ? AP_C_GRN : AP_C_WHT);
         }
         return;
     }
@@ -267,7 +269,7 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
     ap_value_row(154, "VS", actual ? ap_state.vs_act : ap_state.vs);
     for (i = 0; i < AP_SW_N; i++)
         ap_tx(8 + (int32_t)(i % 6u) * 38, 198 + (i / 6u) * 14, &AF_X, AP_LBL[i],
-              (ap_state.flags >> i) & 1u ? AP_C_ON : AP_C_OFF);
+              (ap_state.flags >> i) & 1u ? AP_C_GRN : AP_C_WHT);   /* off: white, on: green (2.5.14) */
 }
 
 void ap_draw(void)

@@ -357,19 +357,11 @@ static uint32_t song_leds(void);
  * here (the turn acts as ever); so does the transport starting (MIDI Start, the editor) or anything above. 1 = it has
  * the LEDs (ui_leds writes none). A dialog or the count-in count as input, as for SCREEN OFF (ui.c scr_frame) */
 #define IDLE_LEDS_MS 60000u
+/* 2.5.14: the drifting idle light show is gone (the owner: it took the LEDs over from the AP panel mode and the
+ * scale assistant a minute after the last input). The power-on sweep (main.c) stays. */
 static int idle_leds(void)
 {
-    int due = (ui_idle & 1u) && !(ui_prefs & PREF_ANIM_OFF) && !song.playing && !seq_counting() && !chain_busy() &&
-              !song.rec && !transport_req && !ui.layer && !ui.lock && !ui.menu && !ui.confirm && !ui.uboot && !name_on() &&
-              !(fm1_in.notes | fm1_in.buttons) && !panel_moved && !play_leds() && fm1_ms - scrn.idle >= IDLE_LEDS_MS;
-    if (!due) {
-        if (fm1_led_idle_on())
-            fm1_led_anim_stop();
-        return 0;
-    }
-    if (!fm1_led_anim_on())                            /* (not over the power-on sweep) */
-        fm1_led_idle_start(settings_leds == LEDS_DIM || settings_leds == LEDS_DIM_LO);
-    return fm1_led_idle_on();
+    return 0;
 }
 /* the key LEDs, bit k = key k: NAME's keys, the layer's map, the DRUM grid, else the keys held and the notes
  * the selected track's sequencer, ARP and MIDI IN play, on STEP while stopped the cursor step's notes (#89; and

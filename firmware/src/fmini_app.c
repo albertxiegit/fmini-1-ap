@@ -3223,7 +3223,7 @@ static void fa_leds(void)
     }
 #endif
     for (k = 0; k < NB; k++)
-        led_put(nd, panel.btn[k], 1);                       /* every button's glow */
+        led_put(nm, panel.btn[k], 1);                       /* every button's backlight, at the scale root's level (2.5.14) */
     for (k = 0; k < 27u; k++)
         led_put(nd, LED_KEY0 + k, 1);                       /* every key's glow too: the keys lit when held or sounding stand over it */
     {
@@ -3246,14 +3246,15 @@ static void fa_leds(void)
         led_put(nl, LED_KEY0 + k, (int)((c >> k) & 1u));
 #if !BOARD_SMK37
     {                           /* the scale assistant (1.2's SCALE LEDS, ui_input.c scale_leds): the selected
-                                 * track's scale keys glow, its root's keys at the brighter mid level, the keys
+                                 * track's scale keys glow at the mid level, the scale's root fully lit, the keys
                                  * outside the scale go dark (the held and sounding keys stay lit). MENU > SCALE
                                  * LEDS turns it on; the AP panel mode returns above and keeps its own picture */
         uint32_t sr, sc = scale_leds(&sr);
         if (sc)
             for (k = 0; k < 27u; k++) {
-                uint32_t in = (sc >> k) & 1u;
-                led_put(nm, LED_KEY0 + k, (int)(in && ((sr >> k) & 1u)));
+                uint32_t in = (sc >> k) & 1u, rt = in & ((sr >> k) & 1u);
+                led_put(nm, LED_KEY0 + k, (int)(in && !rt));   /* the scale's other keys: the root's old level */
+                led_put(nl, LED_KEY0 + k, (int)rt);            /* the root: fully lit (2.5.14) */
                 if (!in && !((c >> k) & 1u))
                     led_clear(nd, LED_KEY0 + k);
             }
