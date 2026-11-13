@@ -1065,7 +1065,9 @@ static const char *const FA_CLK[3] = {"OFF", "USB", "TRS"};
 /* the SCALE pop-up (SCL held ~0.6 s): the selected track's ROOT and SCALE (what the scale LEDs, the chords
  * and the quantize use) and the scale LEDS switch (upstream's MENU > SCALE LEDS bit; there is no MENU here) */
 static const char *const FA_NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-static const char *const FA_SCL_NAME[6] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN"};
+static const char *const FA_SCL_NAME[] = {
+    "CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
+    "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};   /* all of seq.c's SCALE_MASK */
 static uint8_t fa_scp;                                    /* 0 closed, 1 the list */
 static uint8_t fa_scp_row;                                /* 0 ROOT, 1 SCALE, 2 LEDS */
 static uint8_t fa_scl_down, fa_scl_done;
@@ -1566,7 +1568,7 @@ static void fa_gl_dialog(void)
         track_t *t = TSEL;
         fa_frame("SCALE");
         fa_line(62, "ROOT", FA_NOTE[(uint32_t)t->p[P_ROOT] % 12u], fa_scp_row == 0u);
-        fa_line(79, "SCALE", FA_SCL_NAME[clamp(t->p[P_SCALE], 0, 5)], fa_scp_row == 1u);
+        fa_line(79, "SCALE", FA_SCL_NAME[clamp(t->p[P_SCALE], 0, (int32_t)(sizeof FA_SCL_NAME / sizeof FA_SCL_NAME[0]) - 1)], fa_scp_row == 1u);
         fa_line(96, "LEDS", ui_rec_prefs & (PREF_SCALE_LEDS >> 8) ? "ON" : "OFF", fa_scp_row == 2u);
         fa_ctext(120, 199, &AF_S, FA_SEL "  " FA_ALG "  " FA_SCL "=BACK", FA_MU);
         return;
@@ -2979,8 +2981,8 @@ static void fa_input(void)
         if ((s = panel_enc(EN_ALGO)) != 0) {
             if (fa_scp_row == 0u)                          /* ROOT: C .. B */
                 t->p[P_ROOT] = (int16_t)(((int32_t)t->p[P_ROOT] % 12 + 12 + (s > 0 ? 1 : 11)) % 12);
-            else if (fa_scp_row == 1u)                     /* SCALE: CHR MAJ MIN DOR MIX PEN */
-                t->p[P_SCALE] = (int16_t)(((int32_t)t->p[P_SCALE] % 6 + 6 + (s > 0 ? 1 : 5)) % 6);
+            else if (fa_scp_row == 1u)                     /* SCALE: the 16 of SCALE_MASK */
+                t->p[P_SCALE] = (int16_t)(((int32_t)t->p[P_SCALE] + 16 + (s > 0 ? 1 : 15)) % 16);
             else {
                 ui_rec_prefs ^= (uint8_t)(PREF_SCALE_LEDS >> 8);   /* the scale LEDS on / off */
                 fa_cfg_dirty = 1;
