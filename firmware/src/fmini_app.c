@@ -153,7 +153,7 @@ static void fa_knob_draw(int32_t cx, int32_t cy)
 }
 
 /* ------------------------------------------------------------- text --- */
-static int32_t fa_cap_y(const aafont_t *f) { return f == &AF_L ? AF_L_CAP_Y : f == &AF_N ? AF_N_CAP_Y : f == &AF_X ? AF_X_CAP_Y : f == &AF_S ? AF_S_CAP_Y : AF_M_CAP_Y; }
+static int32_t fa_cap_y(const aafont_t *f) { return f == &AF_L ? AF_L_CAP_Y : f == &AF_N ? AF_N_CAP_Y : f == &AF_X ? AF_X_CAP_Y : f == &AF_S ? AF_S_CAP_Y : f == &AF_D ? AF_D_CAP_Y : f == &AF_P ? AF_P_CAP_Y : AF_M_CAP_Y; }
 static int32_t fa_cap_h(const aafont_t *f) { return f == &AF_L ? AF_L_CAP_H : f == &AF_N ? AF_N_CAP_H : f == &AF_X ? AF_X_CAP_H : f == &AF_S ? AF_S_CAP_H : AF_M_CAP_H; }
 /* text with its capitals starting at row ytop, centred on cx */
 static void fa_ctext(int32_t cx, int32_t ytop, const aafont_t *f, const char *s, uint16_t fg)

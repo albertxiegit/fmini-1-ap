@@ -41,7 +41,7 @@ CODE = {0x2026: 0x85}                  # characters outside Latin-1 -> their one
 PHASES, PHASES_L = 4, 2                # horizontal phases per glyph (aa_raster.raster_font): S M, L
 # faces stored Huffman-coded (--huff): M and L. S, the most drawn and the least compressible (-15 %), stays
 # 2 px per byte, so the labels draw at full speed
-HUFF = [("M", "L")]
+HUFF = [("M", "L", "P")]
 # L draws only "FELUCCA", the UPDATE MODE countdown digit, the calibration's control names (panel.c
 # B_NAME / E_NAME) and MENU > LARGE's card values and page titles (ui_draw.c draw_column_tall, ui_graph.c
 # graph_title: # . / J W too; a value with another character is set in M): a sparse face of those glyphs, the
@@ -53,12 +53,17 @@ L_CHARS = " #+-./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 def preset(name):
     if name == "inter-tight":
         v = str(FONTS.parent / "assets" / "fonts" / "InterTight[wght].ttf")   # SIL OFL 1.1, Google Fonts
+        d = str(FONTS.parent / "assets" / "fonts" / "DSEG7Classic-Regular.ttf")   # SIL OFL 1.1, keshikan/DSEG:
+                                                                  # the AP panel's number-tube digits (ap_panel.c)
         return [("S", v + "@400", 12, (32, 126), EXTRAS, 0.0, PHASES),
                 ("M", v + "@500", 15, (32, 126), EXTRAS, 0.0, PHASES),
                 ("L", v + "@600", 28, (32, 32), [ord(c) for c in L_CHARS[1:]], 0.0, PHASES_L),
                 ("X", v + "@500", 9, (32, 126), EXTRAS, 0.0, PHASES),
                 ("N", v + "@500", 20, (32, 126), EXTRAS, 0.0, PHASES),
-                ("H", v + "@600", 60, (32, 32), [ord(c) for c in "FMini-10"], 0.0, PHASES_L)]   # FMini-1: the panel's tabs, labels and ticks
+                ("H", v + "@600", 60, (32, 32), [ord(c) for c in "FMini-10"], 0.0, PHASES_L),
+                ("D", d, 28, (48, 57), [45], -0.2, PHASES),      # the four value rows: 28 px tall; the DSEG
+                ("P", d, 72, (48, 57), [45], -0.2, PHASES_L)]    # side bearings are wide: -0.2 em keeps five
+                                                                 # digits of the popup inside the 224 px screen
     if name == "standin":
         if os.path.exists(LOCAL_INTER):
             reg, med, semi = LOCAL_INTER + "#0", LOCAL_INTER + "#10", LOCAL_INTER + "#12"
@@ -223,8 +228,9 @@ def emit(face, tracking, gamma, kern_min):
     lines.append(f"static const aafont_t AF_{name} = {{{r['h']}, {r['asc']}, {first}, {last}, {len(extras)}, {len(keys)}, "
                  f"AF_{name}_G, AF_{name}_DATA, {'AF_%s_KERN' % name if keys else '0'}, "
                  f"{'AF_%s_KD' % name if keys else '0'}, AF_{name}_EX, {psh}, {'AF_%s_HC' % name if hc else '0'}}};")
-    if "H" in chars:                                  # the capitals' band (gfx.c CAP_IN: centring text by it)
-        cap = table[chars.index("H") * phases]
+    capch = "H" if "H" in chars else ("0" if "0" in chars else None)   # the capitals' band (gfx.c CAP_IN:
+    if capch:                                         # centring text by it); a digits-only face uses '0'
+        cap = table[chars.index(capch) * phases]
         lines.append(f"#define AF_{name}_CAP_Y {cap[3]}   /* the ink of H: rows {cap[3]} .. {cap[3] + cap[5] - 1} of the line */")
         lines.append(f"#define AF_{name}_CAP_H {cap[5]}")
     cost = {"data": len(data) + len(hc), "glyph_table": 8 * len(table), "kern": 3 * len(keys), "extras": len(extras),

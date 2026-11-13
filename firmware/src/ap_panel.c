@@ -22,12 +22,13 @@ static uint16_t ap_popup;                   /* 0xffff none; 0..3 a knob, 12+i a 
 static uint32_t ap_popup_until;
 
 #define AP_SW_N 12u
-/* the switches sit on 12 white keys of the 27 (the black keys keep their
- * printed letters clear for the AP button overlay). The keyboard is F3..G5,
- * so the whites are F G A B | C D E F G A B | C D E F G: taking the first
- * twelve gives F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 and the bridge's
- * NOTE_EVENTS follow the same order (notes 48,50,52,54,55,57,59,60,62,64,66,67). */
-static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19};
+/* the switches sit on 12 of the 16 white keys (the black keys keep their
+ * printed letters clear for the AP button overlay). The top screen row takes
+ * the leftmost whites F3 G3 A3 B3 C4 D4 (keys 0 2 4 6 7 9); the bottom screen
+ * row comes back from the rightmost whites G5 F5 E5 D5 C5 B4 (keys 26 24 23
+ * 21 19 18): the two rows grow inward from the two ends of the keyboard. The
+ * bridge's NOTE_EVENTS map note 48 + key index in the same switch order. */
+static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 26, 24, 23, 21, 19, 18};
 static const uint8_t AP_CC[4] = {20, 21, 22, 23};   /* HDG ALT SPD VS */
 static const char *const AP_LBL[AP_SW_N] = {
     "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
@@ -219,61 +220,14 @@ static void ap_num(char *b, int32_t v)
     *b = 0;
 }
 
-/* ---- the seven-segment digits (the A320 number-tube look) -------------- */
-/* bars are plain cv_rect's: a/b/c/d/e/f/g in bits 0..6; the verticals overlap
- * the horizontals so the joints are solid. vh is one vertical bar's length. */
-static const uint8_t AP_SEG[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
-
-static int32_t ap_seg_count(const char *s)
-{
-    int32_t n = 0;
-    while (*s)
-        n++, s++;
-    return n;
-}
-
-static void ap_seg_at(int32_t x, int32_t y, int32_t w, int32_t h, int32_t gap, const char *s, uint16_t c)
-{
-    /* the FCU's stroke is thin: about a ninth of the digit's height, and never
-     * a third of its width (the 5-digit popup cells are much narrower) */
-    int32_t t = h / 9u, t2 = w / 5u, vh, y2;
-    if (t2 < t)
-        t = t2;
-    if (t < 2)
-        t = 2;
-    vh = (h - 3 * t) / 2;
-    y2 = y + t + vh;
-    for (; *s; s++, x += w + gap) {
-        uint8_t sg = 0;
-        if (*s == '-')
-            sg = 0x40u;
-        else if (*s >= '0' && *s <= '9')
-            sg = AP_SEG[*s - '0'];
-        if (!sg)
-            continue;
-        if (sg & 0x01u) cv_rect(x + t, y, w - 2 * t, t, c);              /* a  top */
-        if (sg & 0x40u) cv_rect(x + t, y2, w - 2 * t, t, c);             /* g  middle */
-        if (sg & 0x08u) cv_rect(x + t, y + h - t, w - 2 * t, t, c);      /* d  bottom */
-        if (sg & 0x20u) cv_rect(x, y + t, t, vh, c);                     /* f  upper left */
-        if (sg & 0x02u) cv_rect(x + w - t, y + t, t, vh, c);             /* b  upper right */
-        if (sg & 0x10u) cv_rect(x, y2 + t, t, vh, c);                    /* e  lower left */
-        if (sg & 0x04u) cv_rect(x + w - t, y2 + t, t, vh, c);            /* c  lower right */
-    }
-}
-
-static int32_t ap_seg_w(int32_t n, int32_t w, int32_t gap)
-{
-    return n * (w + gap) - gap;
-}
-
 /* the four value rows: the label small and white at the left, the number in
- * seven-segment amber right-aligned at the screen's right edge */
+ * DSEG7 (the number-tube face, AF_D) right-aligned at the screen's right edge */
 static void ap_value_row(int32_t y, const char *label, int32_t v)
 {
     char b[8];
-    ap_tx(8, y + 10, &AF_S, label, AP_C_TXT);
+    ap_tx(8, y + 9, &AF_S, label, AP_C_TXT);
     ap_num(b, v);
-    ap_seg_at(234 - ap_seg_w(ap_seg_count(b), 16, 3), y, 16, 30, 3, b, AP_C_NUM);
+    ap_tr(232, y, &AF_D, b, AP_C_NUM);
 }
 
 static void ap_scene(void)                  /* absolute coordinates 0..239 */
@@ -281,7 +235,7 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
     unsigned online = ap_online(), actual = online && ap_state.has_actual, i;
     if (ap_popup_on()) {                    /* the touched control, nearly the full screen */
         if (ap_popup < 4u) {
-            int32_t values[4], n, w;
+            int32_t values[4];
             char b[8];
             values[0] = ap_state.hdg;
             values[1] = ap_state.alt;
@@ -289,11 +243,7 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
             values[3] = ap_state.vs;
             ap_tc(120, 30, &AF_M, AP_KNB[ap_popup], AP_C_TXT);
             ap_num(b, values[ap_popup]);
-            n = ap_seg_count(b);
-            w = (224 - (n - 1) * 8) / n;    /* shrink only when needed: 1..3 digits keep the 3-digit cell */
-            if (w > 69)
-                w = 69;
-            ap_seg_at((240 - ap_seg_w(n, w, 8)) / 2, 72, w, 110, 8, b, AP_C_NUM);
+            ap_tc(120, 84, &AF_P, b, AP_C_NUM);   /* DSEG7 72 px: even five digits (65000) fill the width */
         } else {
             unsigned on;
             i = ap_popup - AP_SW_N;
