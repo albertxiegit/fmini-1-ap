@@ -239,9 +239,9 @@ static void ap_value_row(int32_t y, const char *label, int32_t target, int32_t a
     ap_tx(8, y + 3, &AF_L, label, AP_C_NUM);   /* the label at the digits' size (AF_L 21 of AF_D's 28) */
     ap_num(b, target);
     ap_tr(232, y, &AF_D, b, AP_C_NUM);
-    if (has_actual) {                       /* the live value: green, smaller, left of the target */
+    if (has_actual) {                       /* the live value: the same tube face one size down (AF_E), left of the target */
         ap_num(b, actual);
-        ap_tr(140, y + 8, &AF_L, b, AP_C_GRN);
+        ap_tr(124, y + 4, &AF_E, b, AP_C_GRN);
     }
 }
 

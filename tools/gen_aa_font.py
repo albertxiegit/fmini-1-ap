@@ -62,6 +62,8 @@ def preset(name):
                 ("N", v + "@500", 20, (32, 126), EXTRAS, 0.0, PHASES),
                 ("H", v + "@600", 60, (32, 32), [ord(c) for c in "FMini-10"], 0.0, PHASES_L),
                 ("D", d, 28, (48, 57), [45], -0.1, PHASES),      # the four value rows: 28 px tall; the DSEG
+                ("E", d, 20, (48, 57), [45], -0.1, PHASES),      # the rows' live actual value (2.5.18): the
+                                                                 # same tube face, one size down
                 ("P", d, 62, (48, 57), [45], -0.1, PHASES_L)]    # side bearings are wide: -0.1 em keeps five
                                                                  # digits of the popup inside the 224 px screen
     if name == "standin":
