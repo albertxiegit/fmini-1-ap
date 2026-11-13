@@ -92,6 +92,7 @@ static void ap_set_mode(uint8_t on)
     if (on == ap_on)
         return;
     ap_on = on;
+    fm1_notes_mute = on;                    /* the keys are switches here, not notes (seq.c keyboard_block) */
     ui.force = 1;                           /* the screen switches with the mode */
 }
 
@@ -122,6 +123,8 @@ void ap_input(void)
     uint32_t ne = fm1_input_note_edges(), k;
     unsigned online = ap_online();
     int scale = ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u) ? 10 : 1;
+    if (ne)                                 /* any key: one blip, the same pitch (a switch, not a note) */
+        click_ui();
     (void)panel_enc(EN_SELECT);             /* drained: no jump on leaving the mode */
     (void)panel_enc(EN_ALGO);
     (void)panel_enc(EN_PRESET);

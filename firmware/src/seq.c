@@ -832,7 +832,7 @@ static void ext_keys_block(void)
 
 static void keyboard_block(void)
 {
-    uint32_t cur = fm1_in.notes, ch, k;
+    uint32_t cur = fm1_notes_mute ? 0u : fm1_in.notes, ch, k;   /* (the AP panel mode: its keys are switches) */
     uint32_t lay, fx, mute;
 #if BOARD_SMK37
     ext_keys_block();

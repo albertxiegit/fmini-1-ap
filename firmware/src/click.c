@@ -55,3 +55,10 @@ static __attribute__((noinline)) void click_render(int32_t *out, uint32_t n)
     }
     clk.s = s; clk.c = c; clk.env = env;
 }
+
+/* a UI blip (ap_panel.c: any key of the AP panel mode): the beat voice of the click, the same
+ * pitch whatever the key, whatever the CLICK setting; the next block starts it */
+static void click_ui(void)
+{
+    click_req = 1u;
+}

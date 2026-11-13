@@ -109,10 +109,11 @@
 #define FM1_INPUT_LAT 1           /* the press latency stats below (seq.c, console `inp`) */
 #define FM1_SETTLE_US 10u
 #ifndef FM1_LED_DIM_NS
-#define FM1_LED_DIM_NS 3200u      /* a dim LED's pulse per frame (ns; a lit one ~95 us): ~1/30 the brightness */
+#define FM1_LED_DIM_NS 3840u      /* a dim LED's pulse per frame (ns; a lit one ~95 us): ~1/25 the brightness
+                                   * (2.5.13: 3200 -> 3840, +20 %: the glow was invisible in daylight) */
 #endif
 #ifndef FM1_LED_DIM_LO_NS
-#define FM1_LED_DIM_LO_NS 1600u   /* the darker glow (MENU > LEDS DIM LO): ~1/60 */
+#define FM1_LED_DIM_LO_NS 1920u   /* the darker glow (MENU > LEDS DIM LO): ~1/50 (was 1600) */
 #endif
 #ifndef FM1_LED_DIM_DIV
 #define FM1_LED_DIM_DIV 1u        /* a dim LED: the pulse on 1 frame in DIV (1: every frame, ~910 Hz) */
@@ -181,6 +182,9 @@ static volatile struct {
     uint32_t enc_dfr[FM1_NENC];
     uint32_t frames;
 } fm1_in;
+/* the AP panel mode (ap_panel.c) owns the keys: seq.c keyboard_block takes no note from
+ * them then (they are simulator switches, not notes; the mode clicks instead) */
+static volatile uint8_t fm1_notes_mute;
 static uint8_t fm1_led[FM1_NCOL];
 static uint8_t fm1_led_dim[FM1_NCOL];
 static uint8_t fm1_led_breath[FM1_NCOL];   /* breathing LEDs (see top): dark .. ~60 % of lit, in step */

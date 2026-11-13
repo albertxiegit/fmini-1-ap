@@ -2456,6 +2456,10 @@ static void fa_buttons(uint32_t pressed)
                 fa_scl_done = 1;
                 fa_scp = 1u;
                 fa_scp_row = 0u;
+                if (!(ui_rec_prefs & (PREF_SCALE_LEDS >> 8))) {   /* opening the assistant lights the scale on the keys */
+                    ui_rec_prefs |= (uint8_t)(PREF_SCALE_LEDS >> 8);
+                    fa_cfg_dirty = 1;
+                }
             }
         }
     }
