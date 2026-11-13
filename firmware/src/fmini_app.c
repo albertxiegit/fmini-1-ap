@@ -3246,17 +3246,22 @@ static void fa_leds(void)
         led_put(nl, LED_KEY0 + k, (int)((c >> k) & 1u));
 #if !BOARD_SMK37
     {                           /* the scale assistant (1.2's SCALE LEDS, ui_input.c scale_leds): the selected
-                                 * track's scale keys glow at the mid level, the scale's root fully lit, the keys
-                                 * outside the scale go dark (the held and sounding keys stay lit). MENU > SCALE
-                                 * LEDS turns it on; the AP panel mode returns above and keeps its own picture */
-        uint32_t sr, sc = scale_leds(&sr);
+                                 * track's scale keys fully lit, the scale's root blinking, a key pressed dark, the
+                                 * keys outside the scale dark. MENU > SCALE LEDS turns it on; the AP panel mode
+                                 * returns above and keeps its own picture */
+        uint32_t sr, sc = scale_leds(&sr), bl = (fm1_ms / 250u) & 1u;
         if (sc)
             for (k = 0; k < 27u; k++) {
-                uint32_t in = (sc >> k) & 1u, rt = in & ((sr >> k) & 1u);
-                led_put(nm, LED_KEY0 + k, (int)(in && !rt));   /* the scale's other keys: the root's old level */
-                led_put(nl, LED_KEY0 + k, (int)rt);            /* the root: fully lit (2.5.14) */
-                if (!in && !((c >> k) & 1u))
+                uint32_t in = (sc >> k) & 1u, rt = in & ((sr >> k) & 1u), held = (c >> k) & 1u;
+                if (in) {
+                    int lit = (int)(!held && !(rt && bl));     /* (2.5.16: full, root blinking, pressed: dark) */
+                    if (lit)
+                        led_put(nl, LED_KEY0 + k, 1);
+                    else
+                        led_clear(nl, LED_KEY0 + k);
+                } else if (!held) {
                     led_clear(nd, LED_KEY0 + k);
+                }
             }
     }
 #endif

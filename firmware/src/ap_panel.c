@@ -39,7 +39,7 @@ static const char *const AP_KNB[4] = {"HDG", "ALT", "SPD", "VS"};
 
 /* A320 FCU colours (RGB565): amber digits on black, white labels, like the FCU */
 #define AP_C_BG  0x0000u
-#define AP_C_NUM 0xFE60u            /* the big seven-segment values: amber yellow */
+#define AP_C_NUM 0xFFFFu            /* the values and their labels: bright white (2.5.16) */
 #define AP_C_ON  0xFE60u            /* a switch that is on */
 #define AP_C_OFF 0x52AAu            /* a switch that is off / the dim labels */
 #define AP_C_TXT 0xD69Au            /* the small white-grey text */
@@ -122,11 +122,15 @@ uint8_t ap_popup_on(void)
  * values locally, otherwise the simulator owns the numbers. */
 void ap_input(void)
 {
-    uint32_t ne = fm1_input_note_edges(), k;
+    uint32_t ne = fm1_input_note_edges(), k, swmask = 0u;
     unsigned online = ap_online();
     int scale = ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u) ? 10 : 1;
-    if (ne)                                 /* any key: one blip, the same pitch (a switch, not a note) */
-        click_ui();
+    for (k = 0; k < AP_SW_N; k++)
+        swmask |= 1u << AP_KEYS[k];
+    if (ne & swmask)                        /* a switch's key: ka on the press .. (the other keys are silent) */
+        click_ui(1u);
+    if (ap_keys_down & ~fm1_in.notes & swmask)   /* .. da on the release */
+        click_ui(2u);
     (void)panel_enc(EN_SELECT);             /* drained: no jump on leaving the mode */
     (void)panel_enc(EN_ALGO);
     (void)panel_enc(EN_PRESET);
@@ -157,7 +161,7 @@ void ap_input(void)
             ++ap_state.revision;
         }
         ap_popup = (uint16_t)k;
-        ap_popup_until = fm1_ms + 2000u;
+        ap_popup_until = fm1_ms + 700u;
     }
     /* the switches stream note on/off on channel 1; the bridge maps their
      * notes to simulator events. Offline, a press toggles the local flag so
@@ -168,7 +172,7 @@ void ap_input(void)
             midi_out_event(0x09u | 0x90u << 8 | (48u + key) << 16 | 100u << 24);
             ap_keys_down |= bit;
             ap_popup = (uint16_t)(AP_SW_N + k);
-            ap_popup_until = fm1_ms + 2000u;
+            ap_popup_until = fm1_ms + 700u;
             if (!online) {
                 ap_state.flags ^= (uint16_t)(1u << k);
                 ++ap_state.revision;

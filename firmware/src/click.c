@@ -14,38 +14,50 @@ static volatile uint8_t click_mode;         /* CLICK_*: when the beats click whi
 static volatile uint8_t click_lvl = 1;      /* 0 LOW 1 MID 2 HIGH */
 static volatile uint8_t cin_bars;           /* COUNT-IN: 0 off, 1 or 2 bars */
 static volatile uint8_t click_req;          /* seq.c: 1 a beat, 2 the bar's first; the next block starts it */
+static volatile uint8_t ui_req;             /* ap_panel.c click_ui: 1 the press (ka), 2 the release (da) */
 /* the magic circle (s, c: a sine and its quadrature) at k = 2 sin(pi f / FS), Q15; env Q15, decaying 1/256 a sample */
 #define CLICK_K_DOWN 8195                    /* 1760 Hz */
 #define CLICK_K_BEAT 6154                    /* 1320 Hz */
+#define CLICK_K_TAP 6154                     /* the AP panel's key press: 1320 Hz, a crisp ka */
+#define CLICK_K_REL 4336                     /* its release: 930 Hz, a duller da */
 #define CLICK_AMP 16384                      /* the circle's amplitude */
 static const uint16_t CLICK_GAIN[3] = {1024, 2048, 4096};   /* LOW MID HIGH, Q12: the downbeat's peak -18 / -12 / -6 dB
                                                              * of a full-scale mix (Q15) at MASTER's top */
-static struct { int32_t s, c, k, env, g; } clk;
+static struct { int32_t s, c, k, env, g; uint32_t sh; } clk;
 
 /* add the click to one block of DAC samples (stereo Q15, after the master): out of line, a loop only while it sounds */
 static __attribute__((noinline)) void click_render(int32_t *out, uint32_t n)
 {
-    uint32_t i;
+    uint32_t i, sh;
     int32_t s, c, k, env, g;
-    if (click_req) {
+    if (click_req || ui_req) {
         uint32_t down = click_req == 2u;
         clk.s = 0;                                  /* (from 0: no step at the start) */
         clk.c = CLICK_AMP;
-        clk.k = down ? CLICK_K_DOWN : CLICK_K_BEAT;
         clk.env = 32767;
-        clk.g = CLICK_GAIN[click_lvl % 3u] >> (down ? 0 : 1);   /* Q12: the downbeat x1, a beat x0.5 (-6 dB) */
+        if (ui_req) {                               /* the AP panel's key: ka on the press, da on the release */
+            uint32_t rel = ui_req == 2u;
+            clk.k = rel ? CLICK_K_REL : CLICK_K_TAP;
+            clk.g = CLICK_GAIN[click_lvl % 3u] >> (rel ? 2 : 1);   /* (the release quieter: -12 dB of the downbeat) */
+            clk.sh = rel ? 6u : 9u;                 /* (and shorter: 8x / 2x the decay of a beat) */
+        } else {
+            clk.k = down ? CLICK_K_DOWN : CLICK_K_BEAT;
+            clk.g = CLICK_GAIN[click_lvl % 3u] >> (down ? 0 : 1);  /* Q12: the downbeat x1, a beat x0.5 (-6 dB) */
+            clk.sh = 8u;
+        }
         click_req = 0;
+        ui_req = 0;
     }
     if (clk.env <= 0)
         return;
-    s = clk.s; c = clk.c; k = clk.k; env = clk.env;
+    s = clk.s; c = clk.c; k = clk.k; env = clk.env; sh = clk.sh;
     g = (int32_t)(((uint32_t)clk.g * song.master_q12) >> 12);   /* (MASTER, as the rest of the DAC's signal) */
     for (i = 0; i < n; i++) {
         int32_t v, l, r;
         s += (k * c) >> 15;
         c -= (k * s) >> 15;
         v = (((s * env) >> 15) * g) >> 12;
-        env -= (env >> 8) + 1;
+        env -= (env >> sh) + 1;
         if (env < 0)
             env = 0;
         l = out[2u * i] + v;
@@ -56,9 +68,9 @@ static __attribute__((noinline)) void click_render(int32_t *out, uint32_t n)
     clk.s = s; clk.c = c; clk.env = env;
 }
 
-/* a UI blip (ap_panel.c: any key of the AP panel mode): the beat voice of the click, the same
- * pitch whatever the key, whatever the CLICK setting; the next block starts it */
-static void click_ui(void)
+/* the AP panel mode's key (ap_panel.c): 1 the press (ka), 2 the release (da), the same whatever the key,
+ * whatever CLICK is set to; the next block starts it */
+static void click_ui(uint32_t kind)
 {
-    click_req = 1u;
+    ui_req = (uint8_t)kind;
 }
