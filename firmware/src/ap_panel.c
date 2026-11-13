@@ -230,14 +230,19 @@ static void ap_num(char *b, int32_t v)
     *b = 0;
 }
 
-/* the four value rows: the label small and white at the left, the number in
- * DSEG7 (the number-tube face, AF_D) right-aligned at the screen's right edge */
-static void ap_value_row(int32_t y, const char *label, int32_t v)
+/* the four value rows: the label small and white at the left, the AP target in
+ * DSEG7 (the number-tube face, AF_D) right-aligned at the screen's right edge,
+ * and the bridge's live flight value in green beside it (2.5.17) */
+static void ap_value_row(int32_t y, const char *label, int32_t target, int32_t actual, unsigned has_actual)
 {
     char b[8];
-    ap_tx(8, y + 3, &AF_L, label, AP_C_NUM);   /* the label at the digits' size (AF_L 21 of AF_D's 28), same amber */
-    ap_num(b, v);
+    ap_tx(8, y + 3, &AF_L, label, AP_C_NUM);   /* the label at the digits' size (AF_L 21 of AF_D's 28) */
+    ap_num(b, target);
     ap_tr(232, y, &AF_D, b, AP_C_NUM);
+    if (has_actual) {                       /* the live value: green, smaller, left of the target */
+        ap_num(b, actual);
+        ap_tr(140, y + 8, &AF_L, b, AP_C_GRN);
+    }
 }
 
 static void ap_scene(void)                  /* absolute coordinates 0..239 */
@@ -263,14 +268,14 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
         }
         return;
     }
-    /* normal view: actual flight data at large size; targets only when no
-     * bridge is feeding actuals (offline editing) */
+    /* normal view: the AP targets at large size; with a bridge feeding actuals
+     * the live flight value shows in green beside each target (2.5.17) */
     ap_tx(8, 4, &AF_S, "AP PANEL", AP_C_OFF);
     ap_tr(232, 4, &AF_S, online ? "BRIDGE" : "OFFLINE", online ? AP_C_OK : AP_C_BAD);
-    ap_value_row(22, "HDG", actual ? ap_state.hdg_act : ap_state.hdg);
-    ap_value_row(66, "ALT", actual ? ap_state.alt_act : ap_state.alt);
-    ap_value_row(110, "SPD", actual ? ap_state.ias : ap_state.spd);
-    ap_value_row(154, "VS", actual ? ap_state.vs_act : ap_state.vs);
+    ap_value_row(22, "HDG", ap_state.hdg, ap_state.hdg_act, actual);
+    ap_value_row(66, "ALT", ap_state.alt, ap_state.alt_act, actual);
+    ap_value_row(110, "SPD", ap_state.spd, ap_state.ias, actual);
+    ap_value_row(154, "VS", ap_state.vs, ap_state.vs_act, actual);
     for (i = 0; i < AP_SW_N; i++)
         ap_tx(8 + (int32_t)(i % 6u) * 38, 198 + (i / 6u) * 14, &AF_X, AP_LBL[i],
               (ap_state.flags >> i) & 1u ? AP_C_GRN : AP_C_WHT);   /* off: white, on: green (2.5.14) */
