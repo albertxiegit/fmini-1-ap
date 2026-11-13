@@ -21,26 +21,24 @@ static uint8_t ap_hold_done;                /* this press already toggled */
 static uint16_t ap_popup;                   /* 0xffff none; 0..3 a knob, 12+i a switch */
 static uint32_t ap_popup_until;
 
-#define AP_SW_N 14u
-/* the switches sit on 14 of the 16 white keys (the black keys keep their
+#define AP_SW_N 12u
+/* the switches sit on 12 of the 16 white keys (the black keys keep their
  * printed letters clear for the AP button overlay). The top screen row takes
  * the leftmost whites F3 G3 A3 B3 C4 D4 (keys 0 2 4 6 7 9); the bottom screen
- * row takes the rightmost whites B4 C5 D5 E5 F5 G5 (keys 18 19 21 23 24 26),
- * MACH on the rightmost key: the bottom row reads the same way on the screen
- * and on the keyboard. FLC and BC sit on the middle whites E4 F4 (keys 11 12)
- * and are appended last (indices 12 13, flags bits 12 13, notes 59 60 -- the
- * first twelve switches keep their old notes), shown on a third screen row.
- * The bridge's NOTE_EVENTS map note 48 + key index in the same switch order. */
-static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 18, 19, 21, 23, 24, 26, 11, 12};
+ * row takes the rightmost whites B4 C5 D5 E5 F5 (keys 18 19 21 23 24) plus
+ * FLC on E4 (key 11, in place of the dropped MACH): the bottom row reads the
+ * same way on the screen and on the keyboard. The bridge's NOTE_EVENTS map
+ * note 48 + key index in the same switch order (2.5.20: BC and MACH cut). */
+static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 18, 19, 21, 23, 24, 11};
 static const uint8_t AP_CC[4] = {20, 21, 22, 23};               /* HDG ALT SPD VS */
 static const uint8_t AP_CC2[3] = {24, 25, 26};                  /* SELECT PRESET ALGO (2.5.19) */
 static const uint8_t AP_ENC2[3] = {EN_SELECT, EN_PRESET, EN_ALGO};   /* the encoders, in the CC2 order */
 static const char *const AP_LBL[AP_SW_N] = {
-    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH", "FLC", "BC"};
+    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "FLC"};
 static const char *const AP_NAME[AP_SW_N] = {
-    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH", "FLC", "BC"};
+    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "FLC"};
 static const char *const AP_KNB[4] = {"HDG", "ALT", "SPD", "VS"};
-static const char *const AP_KNB2[3] = {"CABIN LT", "PANEL LT", "MAP ZOOM"};
+static const char *const AP_KNB2[3] = {"FLOOD LT", "PANEL LT", "ZOOM"};
 
 /* A320 FCU colours (RGB565): amber digits on black, white labels, like the FCU */
 #define AP_C_BG  0x0000u
@@ -242,19 +240,16 @@ static void ap_num(char *b, int32_t v)
     *b = 0;
 }
 
-/* the four value rows: the label small and white at the left, the AP target in
- * DSEG7 (the number-tube face, AF_D) right-aligned at the screen's right edge,
- * and the bridge's live flight value in green beside it (2.5.17) */
-static void ap_value_row(int32_t y, const char *label, int32_t target, int32_t actual, unsigned has_actual)
+/* the four value rows: the label small and white at the left, one value in
+ * DSEG7 (the number-tube face, AF_D) right-aligned at the screen's right edge.
+ * One value at a time -- the scene flips the source every 5 s (2.5.20): the
+ * bridge's live flight value in green, or the AP target in white. */
+static void ap_value_row(int32_t y, const char *label, int32_t v, uint16_t col)
 {
     char b[8];
     ap_tx(8, y + 3, &AF_L, label, AP_C_NUM);   /* the label at the digits' size (AF_L 21 of AF_D's 28) */
-    ap_num(b, target);
-    ap_tr(232, y, &AF_D, b, AP_C_NUM);
-    if (has_actual) {                       /* the live value: the same tube face one size down (AF_E), left of the target */
-        ap_num(b, actual);
-        ap_tr(124, y + 4, &AF_E, b, AP_C_GRN);
-    }
+    ap_num(b, v);
+    ap_tr(232, y, &AF_D, b, col);
 }
 
 static void ap_scene(void)                  /* absolute coordinates 0..239 */
@@ -282,14 +277,17 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
         }
         return;
     }
-    /* normal view: the AP targets at large size; with a bridge feeding actuals
-     * the live flight value shows in green beside each target (2.5.17) */
+    /* normal view: one value per row, auto-flipped every 5 s between the
+     * bridge's live flight value (green) and the AP target (white); offline,
+     * the targets in white only (2.5.20) */
+    unsigned show_act = actual && (fm1_ms / 5000u) & 1u;
+    uint16_t col = show_act ? AP_C_GRN : AP_C_NUM;
     ap_tx(8, 4, &AF_S, "AP PANEL", AP_C_OFF);
     ap_tr(232, 4, &AF_S, online ? "BRIDGE" : "OFFLINE", online ? AP_C_OK : AP_C_BAD);
-    ap_value_row(22, "HDG", ap_state.hdg, ap_state.hdg_act, actual);
-    ap_value_row(66, "ALT", ap_state.alt, ap_state.alt_act, actual);
-    ap_value_row(110, "SPD", ap_state.spd, ap_state.ias, actual);
-    ap_value_row(154, "VS", ap_state.vs, ap_state.vs_act, actual);
+    ap_value_row(22, "HDG", show_act ? ap_state.hdg_act : ap_state.hdg, col);
+    ap_value_row(66, "ALT", show_act ? ap_state.alt_act : ap_state.alt, col);
+    ap_value_row(110, "SPD", show_act ? ap_state.ias : ap_state.spd, col);
+    ap_value_row(154, "VS", show_act ? ap_state.vs_act : ap_state.vs, col);
     for (i = 0; i < AP_SW_N; i++)
         ap_tx(8 + (int32_t)(i % 6u) * 38, 198 + (i / 6u) * 14, &AF_X, AP_LBL[i],
               (ap_state.flags >> i) & 1u ? AP_C_GRN : AP_C_WHT);   /* off: white, on: green (2.5.14) */
