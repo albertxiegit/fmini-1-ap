@@ -21,21 +21,26 @@ static uint8_t ap_hold_done;                /* this press already toggled */
 static uint16_t ap_popup;                   /* 0xffff none; 0..3 a knob, 12+i a switch */
 static uint32_t ap_popup_until;
 
-#define AP_SW_N 12u
-/* the switches sit on 12 of the 16 white keys (the black keys keep their
+#define AP_SW_N 14u
+/* the switches sit on 14 of the 16 white keys (the black keys keep their
  * printed letters clear for the AP button overlay). The top screen row takes
  * the leftmost whites F3 G3 A3 B3 C4 D4 (keys 0 2 4 6 7 9); the bottom screen
  * row takes the rightmost whites B4 C5 D5 E5 F5 G5 (keys 18 19 21 23 24 26),
  * MACH on the rightmost key: the bottom row reads the same way on the screen
- * and on the keyboard. The bridge's NOTE_EVENTS map note 48 + key index in the
- * same switch order. */
-static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 18, 19, 21, 23, 24, 26};
-static const uint8_t AP_CC[4] = {20, 21, 22, 23};   /* HDG ALT SPD VS */
+ * and on the keyboard. FLC and BC sit on the middle whites E4 F4 (keys 11 12)
+ * and are appended last (indices 12 13, flags bits 12 13, notes 59 60 -- the
+ * first twelve switches keep their old notes), shown on a third screen row.
+ * The bridge's NOTE_EVENTS map note 48 + key index in the same switch order. */
+static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 18, 19, 21, 23, 24, 26, 11, 12};
+static const uint8_t AP_CC[4] = {20, 21, 22, 23};               /* HDG ALT SPD VS */
+static const uint8_t AP_CC2[3] = {24, 25, 26};                  /* SELECT PRESET ALGO (2.5.19) */
+static const uint8_t AP_ENC2[3] = {EN_SELECT, EN_PRESET, EN_ALGO};   /* the encoders, in the CC2 order */
 static const char *const AP_LBL[AP_SW_N] = {
-    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
+    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH", "FLC", "BC"};
 static const char *const AP_NAME[AP_SW_N] = {
-    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
+    "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH", "FLC", "BC"};
 static const char *const AP_KNB[4] = {"HDG", "ALT", "SPD", "VS"};
+static const char *const AP_KNB2[3] = {"CABIN LT", "PANEL LT", "MAP ZOOM"};
 
 /* A320 FCU colours (RGB565): amber digits on black, white labels, like the FCU */
 #define AP_C_BG  0x0000u
@@ -131,9 +136,16 @@ void ap_input(void)
         click_ui(1u);
     if (ap_keys_down & ~fm1_in.notes & swmask)   /* .. da on the release */
         click_ui(2u);
-    (void)panel_enc(EN_SELECT);             /* drained: no jump on leaving the mode */
-    (void)panel_enc(EN_ALGO);
-    (void)panel_enc(EN_PRESET);
+    for (k = 0; k < 3u; k++) {              /* SELECT PRESET ALGO: relative CC 24..26, no x10 (2.5.19) */
+        int32_t d = panel_enc(AP_ENC2[k]), send;
+        if (!d)
+            continue;
+        send = d < -63 ? -63 : d > 63 ? 63 : d;
+        midi_out_event(0x0Bu | 0xB0u << 8 | (uint32_t)AP_CC2[k] << 16 |
+                       (uint32_t)(64 + send) << 24);
+        ap_popup = (uint16_t)(4u + k);      /* the name only: the level lives in the sim */
+        ap_popup_until = fm1_ms + 700u;
+    }
     for (k = 0; k < 4u; k++) {
         int32_t d = panel_enc(EN_K1 + k) * scale, send;
         if (!d)
@@ -259,7 +271,9 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
             ap_tc(120, 30, &AF_M, AP_KNB[ap_popup], AP_C_TXT);
             ap_num(b, values[ap_popup]);
             ap_tc(120, 84, &AF_P, b, AP_C_NUM);   /* DSEG7 72 px: even five digits (65000) fill the width */
-        } else {
+        } else if (ap_popup < 7u) {         /* the three extra knobs: their name only (2.5.19) */
+            ap_tc(120, 74, &AF_M, AP_KNB2[ap_popup - 4u], AP_C_TXT);
+        } else if (ap_popup >= AP_SW_N) {
             unsigned on;
             i = ap_popup - AP_SW_N;
             on = (ap_state.flags >> i) & 1u;
