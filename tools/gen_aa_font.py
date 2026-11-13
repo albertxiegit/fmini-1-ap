@@ -61,8 +61,8 @@ def preset(name):
                 ("X", v + "@500", 9, (32, 126), EXTRAS, 0.0, PHASES),
                 ("N", v + "@500", 20, (32, 126), EXTRAS, 0.0, PHASES),
                 ("H", v + "@600", 60, (32, 32), [ord(c) for c in "FMini-10"], 0.0, PHASES_L),
-                ("D", d, 28, (48, 57), [45], -0.2, PHASES),      # the four value rows: 28 px tall; the DSEG
-                ("P", d, 72, (48, 57), [45], -0.2, PHASES_L)]    # side bearings are wide: -0.2 em keeps five
+                ("D", d, 28, (48, 57), [45], -0.1, PHASES),      # the four value rows: 28 px tall; the DSEG
+                ("P", d, 62, (48, 57), [45], -0.1, PHASES_L)]    # side bearings are wide: -0.1 em keeps five
                                                                  # digits of the popup inside the 224 px screen
     if name == "standin":
         if os.path.exists(LOCAL_INTER):

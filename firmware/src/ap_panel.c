@@ -25,10 +25,11 @@ static uint32_t ap_popup_until;
 /* the switches sit on 12 of the 16 white keys (the black keys keep their
  * printed letters clear for the AP button overlay). The top screen row takes
  * the leftmost whites F3 G3 A3 B3 C4 D4 (keys 0 2 4 6 7 9); the bottom screen
- * row comes back from the rightmost whites G5 F5 E5 D5 C5 B4 (keys 26 24 23
- * 21 19 18): the two rows grow inward from the two ends of the keyboard. The
- * bridge's NOTE_EVENTS map note 48 + key index in the same switch order. */
-static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 26, 24, 23, 21, 19, 18};
+ * row takes the rightmost whites B4 C5 D5 E5 F5 G5 (keys 18 19 21 23 24 26),
+ * MACH on the rightmost key: the bottom row reads the same way on the screen
+ * and on the keyboard. The bridge's NOTE_EVENTS map note 48 + key index in the
+ * same switch order. */
+static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 18, 19, 21, 23, 24, 26};
 static const uint8_t AP_CC[4] = {20, 21, 22, 23};   /* HDG ALT SPD VS */
 static const char *const AP_LBL[AP_SW_N] = {
     "AP", "FD", "A/T", "NAV", "VNAV", "HDG", "ALT", "VS", "SPD", "LOC", "APR", "MACH"};
