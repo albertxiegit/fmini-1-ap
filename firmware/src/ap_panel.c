@@ -275,6 +275,7 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
 void ap_draw(void)
 {
     uint32_t band;
+    ux.raw = 1;                             /* the FCU's own colours: amber, green, white (no GREY/MONO reduction) */
     for (band = 0; band < 2u; band++) {
         cv_begin(240, 120, AP_C_BG);
         cv_oy = -(int32_t)band * 120;
@@ -283,4 +284,5 @@ void ap_draw(void)
         cv_oy = 0;
         cv_blit(0, band * 120u);
     }
+    ux.raw = 0;
 }

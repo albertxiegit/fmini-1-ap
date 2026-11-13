@@ -84,6 +84,7 @@ static struct {
     uint16_t bg, surf, text, theme, accent;
     uint16_t mid, dim, line, sel, tint, ink, rec, raise, key, lane, grid;
     uint8_t light, mono, bw;      /* mono: GREY; bw: MONO (black and white) */
+    uint8_t raw;                  /* 2.5.15: its own colours, not the palette's (ap_panel.c's FCU amber/green) */
     uint8_t style;               /* MENU > STYLE (ui.c style_apply): ST_FLAT, ST_LINE */
     uint32_t gen;                /* bumped by palette_set (the text ramps follow) */
 } ux;
@@ -335,13 +336,14 @@ static const uint8_t CURVE_LIGHT[16] = {0, 12, 27, 42, 58, 75, 91, 109, 126, 144
 static struct {
     uint16_t fg[NRAMP], bg[NRAMP], v[NRAMP][16];   /* v: byte-swapped panel values */
     uint32_t gen;
+    uint8_t raw[NRAMP];
     uint8_t next, n;
 } rc;
 
 static const uint16_t *ramp(uint16_t fg, uint16_t bg)
 {
     static const uint8_t SH[3] = {11, 5, 0}, MK[3] = {31, 63, 31};
-    const uint8_t *cv = ux.light ? CURVE_LIGHT : CURVE_DARK;
+    const uint8_t *cv = (ux.light && !ux.raw) ? CURVE_LIGHT : CURVE_DARK;
     uint32_t i, a, k;
     uint16_t *v;
     if (fg == bg)                                /* MONO: DIM on a RAISE well (one grey): black, recessed */
@@ -352,7 +354,7 @@ static const uint16_t *ramp(uint16_t fg, uint16_t bg)
         rc.n = rc.next = 0;
     }
     for (i = 0; i < rc.n; i++)
-        if (rc.fg[i] == fg && rc.bg[i] == bg)
+        if (rc.fg[i] == fg && rc.bg[i] == bg && rc.raw[i] == ux.raw)
             return rc.v[i];
     i = rc.next;
     rc.next = (uint8_t)((i + 1u) % NRAMP);
@@ -360,11 +362,12 @@ static const uint16_t *ramp(uint16_t fg, uint16_t bg)
         rc.n++;
     rc.fg[i] = fg;
     rc.bg[i] = bg;
+    rc.raw[i] = ux.raw;
     v = rc.v[i];
     for (a = 0; a < 16u; a++) {
         uint32_t out = 0;
         int32_t w = cv[a];
-        if (ux.mono) {
+        if (ux.mono && !ux.raw) {
             int32_t x = bg >> 11;
             out = ux_gray((uint32_t)(x + ((((fg >> 11) - x) * w + 128) >> 8)));
         } else {
