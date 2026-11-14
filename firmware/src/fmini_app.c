@@ -1072,6 +1072,24 @@ static uint8_t fa_scp;                                    /* 0 closed, 1 the lis
 static uint8_t fa_scp_row;                                /* 0 ROOT, 1 SCALE, 2 LEDS */
 static uint8_t fa_scl_down, fa_scl_done;
 static uint32_t fa_scl_t0;
+/* the transpose hint (OCT- + ALGORITHM, any screen): the offset in semitones and the major key that plays
+ * now (the track's ROOT transposed; C major at 0, C# major at +1). Shows while the knob turns and 1 s after */
+static uint32_t fa_tr_until;
+static int fa_tr_on(void) { return fa_tr_until && (int32_t)(fm1_ms - fa_tr_until) < 0; }
+static void fa_tr_draw(void)
+{
+    const track_t *t = TSEL;
+    char b[8], key[12];
+    cv_rect(46, 72, 148, 84, FA_OR);
+    cv_rect(48, 74, 144, 80, FA_RGB(0x1B, 0x19, 0x17));
+    b[0] = glo_transpose > 0 ? '+' : glo_transpose < 0 ? '-' : ' ';
+    fmt_int(b + (glo_transpose != 0), glo_transpose < 0 ? -glo_transpose : glo_transpose);
+    fa_ctext(120, 82, &AF_L, b, FA_OR);
+    str_cpy(key, "KEY: ", 6);
+    str_cpy(key + 5, FA_NOTE[(uint32_t)((t->p[P_ROOT] + glo_transpose) % 12 + 12) % 12u], 4);
+    str_cpy(key + str_len(key), " MAJ", 5);
+    fa_ctext(120, 124, &AF_S, key, FA_MU);
+}
 #if BOARD_SMK37
 #define FA_NCLK 2u                                        /* SMK-37: OFF, USB (no MIDI IN on its jack) */
 #define FA_MS_N 6u                                        /* MIDI SETTINGS' lines */
@@ -1934,6 +1952,8 @@ static void fa_scene(void)
         return;                                          /* the restore question is up: no other pop-up over it */
     if (fa_tp)
         fa_tp_draw();
+    if (fa_tr_on())
+        fa_tr_draw();
     if (fa_pp_on())
         fa_pp_draw();
     if (fa_cpu_on())
@@ -1968,7 +1988,7 @@ static uint32_t fa_signature(void)
     h = (h ^ smk_out_mode ^ (uint32_t)smk_out_ch << 2) * 16777619u;   /* MIDI OUT, MIDI OUT CH */
 #endif
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
-    h = (h ^ fa_cha ^ (uint32_t)fa_cha_row << 4 ^ (uint32_t)(t->p[P_CHRD] | t->p[P_VOIC] << 8) << 6 ^ (uint32_t)(glo_transpose + 16) << 20) * 16777619u;   /* the chord assistant */
+    h = (h ^ fa_cha ^ (uint32_t)fa_cha_row << 4 ^ (uint32_t)(t->p[P_CHRD] | t->p[P_VOIC] << 8) << 6 ^ (uint32_t)(glo_transpose + 16) << 20 ^ (uint32_t)fa_tr_on() << 26) * 16777619u;   /* the chord assistant, the transpose hint */
     h = (h ^ (uint32_t)song.g[G_RSIZE] ^ (uint32_t)song.g[G_DRREV] << 7 ^ (uint32_t)song.g[G_CRATE] << 14 ^ (uint32_t)song.g[G_DRLVL] << 21) * 16777619u;   /* FX: DECAY TIME RATE TONE */
     for (i = 0; i < 8u; i++)                                 /* the pop-ups' others, and which pop-up is open */
         h = (h ^ (uint32_t)song.g[FA_GID2[i]]) * 16777619u;
@@ -2957,6 +2977,8 @@ static void fa_input(void)
                                     * keeps its own knobs (2.5.24) */
         panic_req |= 1u;                                    /* the notes held now sound elsewhere: none may hang */
         fa_cfg_dirty = 1;
+        fa_tr_until = fm1_ms + 1000u;                       /* the hint: the offset and the key, 1 s */
+        ui.force = 1;
     }
     midi_take();                                            /* MIDI IN notes */
     midi_pc_poll();                                         /* Program Change: a patch */
