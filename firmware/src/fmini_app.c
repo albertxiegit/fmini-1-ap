@@ -753,15 +753,15 @@ static void fa_restore_dialog(void)
 /* ARP: a pop-up like SAVE's. KNOB 1..4 are MODE, RATE, OCT, GATE; SELECT picks a line (the fifth is the tempo) and
  * ALGORITHM changes it; ARP again, HOME or a page button closes it. The arpeggio goes on after closing */
 static uint8_t fa_ar;                                     /* 1: the pop-up is open */
-static uint8_t fa_ar_row;                                 /* 0 MODE, 1 CHORD, 2 RATE, 3 OCT, 4 GATE, 5 HOLD, 6 BPM */
-#define FA_AR_N 7u
-static const uint8_t FA_AR_ID[6] = {P_AMODE, P_CHRD, P_ARATE, P_AOCT, P_AGATE, P_AHOLD};
-static const char *const FA_AR_LB[FA_AR_N] = {"MODE", "CHORD", "RATE", "OCTAVES", "GATE", "HOLD", "TEMPO"};
+static uint8_t fa_ar_row;                                 /* 0 MODE, 1 RATE, 2 OCT, 3 GATE, 4 HOLD, 5 BPM */
+#define FA_AR_N 6u
+static const uint8_t FA_AR_ID[5] = {P_AMODE, P_ARATE, P_AOCT, P_AGATE, P_AHOLD};
+static const char *const FA_AR_LB[FA_AR_N] = {"MODE", "RATE", "OCTAVES", "GATE", "HOLD", "TEMPO"};
 
 static void fa_ar_turn(uint32_t row, int32_t s)
 {
     track_t *t = TSEL;
-    if (row < 6u) {
+    if (row < 5u) {
         const param_desc_t *d = track_desc(t, FA_AR_ID[row]);
         int16_t *vp = &t->p[FA_AR_ID[row]];
         *vp = (int16_t)param_turn(d, *vp, s);
@@ -795,11 +795,11 @@ static void fa_ar_dialog(void)
     for (i = 0; i < FA_AR_N; i++) {
         char val[16];
         const char *un;
-        if (i < 6u)
+        if (i < 5u)
             param_format(track_desc(t, FA_AR_ID[i]), t->p[FA_AR_ID[i]], val, &un);
         else
             fmt_int(val, song.g[G_BPM]);
-        fa_line(50 + (int32_t)i * 22, FA_AR_LB[i], val, i == fa_ar_row);
+        fa_line(62 + (int32_t)i * 22, FA_AR_LB[i], val, i == fa_ar_row);
     }
     fa_ctext(120, 196, &AF_S, FA_SEL "  " FA_ALG "  " FA_K14 "  ARP=CLOSE", FA_MU);
 }
@@ -1204,6 +1204,25 @@ static void fa_gl_close(void)
     fa_gl = 0;
     fa_cfg_save();
 }
+/* the CHORD assistant (ENV held ~0.45 s), like the scale assistant: the row's value on the selected track,
+ * then a root key on the keyboard -- the chord's tones light on the keys (fa_leds) and the key plays the
+ * chord (CHRD). Rows: CHORD (the quality, P_CHRD), VOIC (P_VOIC), TRANSPOSE (the global one, GLO's value) */
+static uint8_t fa_cha;                                    /* 1: the chord assistant is open */
+static uint8_t fa_cha_row;                                /* 0 CHORD, 1 VOIC, 2 TRANSPOSE */
+#define FA_CHA_N 3u
+static const char *const FA_CHA_LB[FA_CHA_N] = {"CHORD", "VOICING", "TRANSPOSE"};
+static void fa_cha_open(void)
+{
+    fa_sv = 0;
+    fa_ar = 0;
+    fa_sc = 0;
+    fa_sq = 0;
+    fa_sq_rec = 0;
+    fa_scp = 0;
+    fa_gl_close();
+    fa_cha = 1;
+    fa_cha_row = 0;
+}
 static void fa_arp_show(void)
 {
     fa_sv = 0;
@@ -1211,7 +1230,27 @@ static void fa_arp_show(void)
     fa_sq_rec = 0;
     fa_gl_close();
     fa_sc = 0;
+    fa_cha = 0;
     fa_ar = 1;
+}
+static void fa_cha_draw(void)
+{
+    const track_t *t = TSEL;
+    char b[8];
+    fa_frame("CHORDS");
+    fa_line(70, FA_CHA_LB[0], N_CHRD[(uint32_t)clamp(t->p[P_CHRD], 0, (int32_t)(sizeof N_CHRD / sizeof N_CHRD[0]) - 1)], fa_cha_row == 0u);
+    fa_line(92, FA_CHA_LB[1], N_VOIC[(uint32_t)clamp(t->p[P_VOIC], 0, (int32_t)(sizeof N_VOIC / sizeof N_VOIC[0]) - 1)], fa_cha_row == 1u);
+    if (glo_transpose > 0) {
+        b[0] = '+';
+        fmt_int(b + 1, glo_transpose);
+    } else if (glo_transpose < 0) {
+        b[0] = '-';
+        fmt_int(b + 1, -glo_transpose);
+    } else
+        fmt_int(b, glo_transpose);
+    fa_line(114, FA_CHA_LB[2], b, fa_cha_row == 2u);
+    fa_ctext(120, 160, &AF_S, "PICK, THEN PLAY A ROOT KEY", FA_MU);
+    fa_ctext(120, 196, &AF_S, FA_SEL "  " FA_ALG "  ENV=CLOSE", FA_MU);
 }
 
 /* control n of the list -> its page and place, its tag and name */
@@ -1878,6 +1917,8 @@ static void fa_scene(void)
         fa_seq_dialog();
     else if (fa_ar)
         fa_ar_dialog();
+    else if (fa_cha)
+        fa_cha_draw();
     else if (fa_sv)
         fa_sv_conf ? fa_confirm_dialog() : fa_dialog();
     else if (fmg_fx)
@@ -1926,6 +1967,7 @@ static uint32_t fa_signature(void)
     h = (h ^ smk_out_mode ^ (uint32_t)smk_out_ch << 2) * 16777619u;   /* MIDI OUT, MIDI OUT CH */
 #endif
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
+    h = (h ^ fa_cha ^ (uint32_t)fa_cha_row << 4 ^ (uint32_t)(t->p[P_CHRD] | t->p[P_VOIC] << 8) << 6 ^ (uint32_t)(glo_transpose + 16) << 20) * 16777619u;   /* the chord assistant */
     h = (h ^ (uint32_t)song.g[G_RSIZE] ^ (uint32_t)song.g[G_DRREV] << 7 ^ (uint32_t)song.g[G_CRATE] << 14 ^ (uint32_t)song.g[G_DRLVL] << 21) * 16777619u;   /* FX: DECAY TIME RATE TONE */
     for (i = 0; i < 8u; i++)                                 /* the pop-ups' others, and which pop-up is open */
         h = (h ^ (uint32_t)song.g[FA_GID2[i]]) * 16777619u;
@@ -2456,6 +2498,7 @@ static void fa_buttons(uint32_t pressed)
                 fa_scl_down = 0;
             else if (!fa_scl_done && (uint32_t)(fm1_ms - fa_scl_t0) >= 600u) {
                 fa_scl_done = 1;
+                fa_cha = 0;
                 fa_scp = 1u;
                 fa_scp_row = 0u;
                 if (!(ui_rec_prefs & (PREF_SCALE_LEDS >> 8))) {   /* opening the assistant lights the scale on the keys */
@@ -2465,8 +2508,8 @@ static void fa_buttons(uint32_t pressed)
             }
         }
     }
-    {   /* ARP: a tap turns the arpeggiator on / off (the button lights); held, the pop-up (the chord assistant:
-         * its CHORD row). With the pop-up closed and the arpeggiator on, a tap only opens the pop-up */
+    {   /* ARP: a tap turns the arpeggiator on / off (the button lights); held, HOLD on / off. The pop-up shows it.
+         * With the pop-up closed and the arpeggiator on, a tap only opens the pop-up: the arpeggio stays on */
         uint32_t down = (fm1_in.buttons >> panel.btn[B_ARP]) & 1u;
         if ((pressed >> panel.btn[B_ARP]) & 1u) {
             fa_arp_down = 1;
@@ -2488,9 +2531,9 @@ static void fa_buttons(uint32_t pressed)
                     }
                     fa_arp_show();
                 }
-            } else if (!fa_arp_done && (uint32_t)(fm1_ms - fa_arp_t0) >= 450u) {   /* the hold: the pop-up (the
-                                    * chord assistant: its CHORD row; HOLD has its own row) */
+            } else if (!fa_arp_done && (uint32_t)(fm1_ms - fa_arp_t0) >= 450u) {   /* the hold */
                 fa_arp_done = 1;
+                TSEL->p[P_AHOLD] = (int16_t)!TSEL->p[P_AHOLD];
                 fa_arp_show();
             }
         }
@@ -2566,6 +2609,7 @@ static void fa_buttons(uint32_t pressed)
     }
     if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
         fa_ar = 0;
+        fa_cha = 0;
         fa_sc = 0;
         fa_sq = 0;
         fa_sq_rec = 0;
@@ -2587,6 +2631,7 @@ static void fa_buttons(uint32_t pressed)
                 fmg_cur[7] = 0u;
                 fa_sv = 0;
                 fa_ar = 0;
+                fa_cha = 0;
                 fa_sc = 0;
                 fa_sq = 0;
                 fa_sq_rec = 0;
@@ -2595,6 +2640,7 @@ static void fa_buttons(uint32_t pressed)
             if (PG_BTN[i] == B_FX && fa_page == 6u) {     /* FX again: round the four pop-ups, then back to the page */
                 fa_sv = 0;
                 fa_ar = 0;
+                fa_cha = 0;
                 fa_sc = 0;
                 fa_sq = 0;
                 fa_sq_rec = 0;
@@ -2607,11 +2653,16 @@ static void fa_buttons(uint32_t pressed)
             fmg_fx = 0;
             fa_sv = 0;                                    /* a page button cancels the dialog */
             fa_ar = 0;
+            fa_cha = 0;
             fa_sc = 0;
             fa_sq = 0;
             fa_sq_rec = 0;
             fa_gl_close();
             if (PG_BTN[i] == B_ENV) {
+                if (fa_cha) {                             /* the chord assistant is open: ENV closes it */
+                    fa_cha = 0;
+                    continue;
+                }
                 fa_env_last = (uint8_t)(fa_page == 4u ? 5u : 4u);
                 fa_goto(fa_env_last);
             } else {
@@ -2619,6 +2670,24 @@ static void fa_buttons(uint32_t pressed)
                 fa_goto(PG_BTN[i] == B_SCL && fa_page == 1u ? 2u : TO[i]);
             }
         }
+    {   /* ENV held ~0.45 s: the chord assistant (a tap is the page switch, above) */
+        static uint8_t env_down, env_done;
+        static uint32_t env_t0;
+        uint32_t down = (fm1_in.buttons >> panel.btn[B_ENV]) & 1u;
+        if ((pressed >> panel.btn[B_ENV]) & 1u) {
+            env_down = 1;
+            env_done = 0;
+            env_t0 = fm1_ms;
+        }
+        if (env_down) {
+            if (!down)
+                env_down = 0;
+            else if (!env_done && (uint32_t)(fm1_ms - env_t0) >= 450u) {
+                env_done = 1;
+                fa_cha_open();
+            }
+        }
+    }
     if ((pressed >> panel.btn[B_OCTDN]) & 1u)
         song.octave = song.octave > -3 ? song.octave - 1 : song.octave;
     if ((pressed >> panel.btn[B_OCTUP]) & 1u)
@@ -2990,6 +3059,26 @@ static void fa_input(void)
         }
         return;
     }
+    if (fa_cha) {                                         /* the chord assistant: SELECT the row, ALGO its value */
+        track_t *t = TSEL;
+        for (k = 0; k < 4u; k++)
+            (void)panel_enc(EN_K1 + k);
+        (void)panel_enc(EN_PRESET);
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            fa_cha_row = (uint8_t)((fa_cha_row + FA_CHA_N + (s > 0 ? 1u : FA_CHA_N - 1u)) % FA_CHA_N);
+        if ((s = panel_enc(EN_ALGO)) != 0) {
+            if (fa_cha_row == 0u)                          /* CHORD: the quality (P_CHRD, 0 .. CH_LAST-1) */
+                t->p[P_CHRD] = (int16_t)(((int32_t)t->p[P_CHRD] + CH_LAST + (s > 0 ? 1 : CH_LAST - 1)) % CH_LAST);
+            else if (fa_cha_row == 1u)                     /* VOICING: CLOSE OPEN INV1 INV2 +OCT */
+                t->p[P_VOIC] = (int16_t)(((int32_t)t->p[P_VOIC] + 5 + (s > 0 ? 1 : 4)) % 5);
+            else {                                         /* TRANSPOSE: the global one, as GLO's row does */
+                glo_transpose = clamp(glo_transpose + (s > 0 ? 1 : -1), -12, 12);
+                panic_req |= 1u;                           /* the notes held now sound elsewhere: none may hang */
+                fa_cfg_dirty = 1;
+            }
+        }
+        return;
+    }
     if (fa_gl) {                                          /* the GLO pop-up (the page's knobs wait) */
         for (k = 0; k < 4u; k++)
             (void)panel_enc(EN_K1 + k);
@@ -3137,7 +3226,7 @@ static void fa_input(void)
             fa_ar_row = (uint8_t)((fa_ar_row + FA_AR_N + (s > 0 ? 1u : FA_AR_N - 1u)) % FA_AR_N);
         if ((s = panel_enc(EN_ALGO)) != 0) {
             fa_ar_turn(fa_ar_row, s);
-            if (fa_ar_row == 6u)                          /* TEMPO: the TAP TEMPO pop-up opens */
+            if (fa_ar_row == 5u)                          /* TEMPO: the TAP TEMPO pop-up opens */
                 fa_tp_begin();
         }
         for (k = 0; k < 4u; k++)
@@ -3180,15 +3269,8 @@ static void fa_input(void)
     if ((s = panel_enc(EN_SELECT)) != 0)
         fa_select(s);
     fmg_force_page = (int8_t)fa_page;
-    if ((s = panel_enc(EN_ALGO)) != 0) {
-        if ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u) {  /* OCT- held: the knob is the global transpose
-                                    * (GLO > GLOBAL > TRANSPOSE's value; the AP panel keeps its own use) */
-            glo_transpose = clamp(glo_transpose + s, -12, 12);
-            panic_req |= 1u;                    /* the notes held now sound elsewhere: none may hang */
-            fa_cfg_dirty = 1;
-        } else
-            fmg_algo(s);
-    }
+    if ((s = panel_enc(EN_ALGO)) != 0)
+        fmg_algo(s);
     for (k = 0; k < 4u; k++)
         if ((s = panel_enc(EN_K1 + k)) != 0) {
 #if BOARD_SMK37
@@ -3256,9 +3338,41 @@ static void fa_leds(void)
 #if !BOARD_SMK37
     {                           /* the scale assistant (1.2's SCALE LEDS, ui_input.c scale_leds): the selected
                                  * track's scale keys fully lit, the scale's root blinking, a key pressed dark, the
-                                 * keys outside the scale dark. MENU > SCALE LEDS turns it on; the AP panel mode
+                                 * keys outside the scale dark. With the chord assistant open and a quality picked,
+                                 * the chord on the held root key lights instead (nothing held: the track's ROOT),
+                                 * the root blinking. MENU > SCALE LEDS turns it on; the AP panel mode
                                  * returns above and keeps its own picture */
         uint32_t sr, sc = scale_leds(&sr), bl = (fm1_ms / 250u) & 1u;
+        if (fa_cha && TSEL->p[P_CHRD]) {                  /* the chord assistant's own picture */
+            const track_t *t = TSEL;
+            uint8_t cc[CHORD_MAX];
+            int32_t rp, rt_note = 60 + t->p[P_ROOT];      /* C4 + the track's ROOT when no key is held */
+            uint16_t cm;
+            uint32_t k2;
+            for (k2 = 0; k2 < 27u; k2++)                  /* the lowest held key is the root */
+                if ((fm1_in.notes >> k2) & 1u) {
+                    rt_note = (int32_t)kb_map(t, k2);
+                    break;
+                }
+            (void)chord_make(t, (uint32_t)rt_note, cc, &rp, &cm);
+            sc = 0;
+            sr = 0;
+            if (cm) {
+                for (k2 = 0; k2 < 27u; k2++) {
+                    int32_t n = (int32_t)kb_map(t, k2);
+                    if (n > 127)
+                        continue;
+                    {
+                        uint32_t pc = (uint32_t)(((n - rt_note) % 12 + 12) % 12);
+                        if ((cm >> pc) & 1u) {
+                            sc |= 1u << k2;
+                            if (pc == 0)
+                                sr |= 1u << k2;           /* the root key blinks */
+                        }
+                    }
+                }
+            }
+        }
         if (sc)
             for (k = 0; k < 27u; k++) {
                 uint32_t in = (sc >> k) & 1u, rt = in & ((sr >> k) & 1u), held = (c >> k) & 1u;

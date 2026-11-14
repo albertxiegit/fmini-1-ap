@@ -128,7 +128,9 @@ static void midi_play(track_t *t, uint32_t ch, uint32_t note, uint32_t vel)
         nn[0] = (uint8_t)note;
     }
     for (i = 0; i < n; i++)
-        if (!midi_note_held(t, nn[i]) && !midi_local_held(t, nn[i]))
+        if (!midi_note_held(t, nn[i]) && !midi_local_held(t, nn[i])
+            && !(i && t->p[P_AMODE]))             /* ARP on: only the root enters the input (the arp's
+                                                     list is the chord, arp_list 2.5.22) */
             input_on(t, nn[i], vel);
     if (n > 1u || nn[0] != note) {
         mchord_t *m = &mchord[f];

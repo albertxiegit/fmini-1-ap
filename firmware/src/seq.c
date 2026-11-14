@@ -760,6 +760,10 @@ static void key_on(uint32_t k, track_t *t)
         uint32_t x = kb_chord[k][i];
         if (midi_local_held(t, x))
             continue;
+        if (i && t->p[P_AMODE])                     /* ARP on: the arp's list is the chord (arp_list expands
+                                                       the root, 2.5.22); the tones themselves would end up
+                                                       in it again and scramble the walk */
+            continue;
         input_on(t, x, vel);
         midi_out_event(0x09u | (0x90u | mc) << 8 | x << 16 | vel << 24);
     }

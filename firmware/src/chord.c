@@ -20,7 +20,7 @@ enum { VC_CLOSE, VC_OPEN, VC_INV1, VC_INV2, VC_BASS };
 #define CHORD_MAX 5u
 #define MCHORD_N 24u                     /* MIDI notes held as chords at once (more: their root alone) */
 
-static const int8_t CHORD_SHAPE[CH_LAST - CH_MAJ - 1u][CHORD_MAX] = {
+static const int8_t CHORD_SHAPE[CH_LAST - CH_MAJ][CHORD_MAX] = {
     {0, 4, 7, -1, -1}, {0, 3, 7, -1, -1}, {0, 4, 7, 10, -1}, {0, 4, 7, 11, -1}, {0, 3, 7, 10, -1},
     {0, 5, 7, -1, -1}, {0, 7, 12, -1, -1},
     {0, 4, 8, -1, -1},                                 /* AUG */
