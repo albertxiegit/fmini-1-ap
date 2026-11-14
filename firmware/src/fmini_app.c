@@ -1205,8 +1205,9 @@ static void fa_gl_close(void)
     fa_cfg_save();
 }
 /* the CHORD assistant (ENV held ~0.45 s), like the scale assistant: the row's value on the selected track,
- * then a root key on the keyboard -- the chord's tones light on the keys (fa_leds) and the key plays the
- * chord (CHRD). Rows: CHORD (the quality, P_CHRD), VOIC (P_VOIC), TRANSPOSE (the global one, GLO's value) */
+ * then a root key on the keyboard -- the chord's tones light on the keys (fa_leds); the keys play their
+ * own notes (2.5.24), the ARP walks the chord's tones. Rows: CHORD (the quality, P_CHRD), VOIC (P_VOIC),
+ * TRANSPOSE (the global one, GLO's value) */
 static uint8_t fa_cha;                                    /* 1: the chord assistant is open */
 static uint8_t fa_cha_row;                                /* 0 CHORD, 1 VOIC, 2 TRANSPOSE */
 #define FA_CHA_N 3u
@@ -2948,6 +2949,14 @@ static void fa_input(void)
     if (ap_active()) {                                      /* the mode owns the panel: its keys, its knobs */
         ap_input();
         return;
+    }
+    if ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u && (s = panel_enc(EN_ALGO)) != 0) {
+        glo_transpose = clamp(glo_transpose + s, -12, 12);  /* OCT- held: ALGORITHM is the global transpose
+                                    * (-12..+12, GLO's value), on any screen: this runs before the pop-ups
+                                    * (fm1_enc_take cleared the detents, they see none). The AP panel mode
+                                    * keeps its own knobs (2.5.24) */
+        panic_req |= 1u;                                    /* the notes held now sound elsewhere: none may hang */
+        fa_cfg_dirty = 1;
     }
     midi_take();                                            /* MIDI IN notes */
     midi_pc_poll();                                         /* Program Change: a patch */

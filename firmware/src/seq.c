@@ -749,38 +749,31 @@ static uint32_t key_vel(uint32_t k)
 #define key_vel(k) ((uint32_t)kb_vel)               /* the FM-1's keys: SELECT VEL */
 #endif
 
-/* key k plays kb_note[k] on track t: its chord (chord.c; the note alone with CHRD OFF). A note another key
- * holds already sounds: it is not started again (nor sent to MIDI OUT); the key keeps its notes */
+/* key k plays kb_note[k] on track t (2.5.24: the note alone always -- the CHRD quality does not play from
+ * a key any more, the chord assistant only lights its tones and the arp walks them; the player's own
+ * fingers make the chords). A note another key holds already sounds: it is not started again (nor sent
+ * to MIDI OUT) */
 static void key_on(uint32_t k, track_t *t)
 {
-    uint32_t n = chord_build(t, kb_note[k], kb_chord[k]), i, mc = trk_midi_ch(trk_index(t)), vel = key_vel(k);
+    uint32_t x = kb_note[k], mc = trk_midi_ch(trk_index(t)), vel = key_vel(k);
+    (void)chord_build(t, x, kb_chord[k]);           /* (the CHORD page's display keeps its state) */
     kb_chn[k] = 0;
     in_key = (uint8_t)(k + 1u);                     /* (the arp keeps the key: arp_add) */
-    for (i = 0; i < n; i++) {
-        uint32_t x = kb_chord[k][i];
-        if (midi_local_held(t, x))
-            continue;
-        if (i && t->p[P_AMODE])                     /* ARP on: the arp's list is the chord (arp_list expands
-                                                       the root, 2.5.22); the tones themselves would end up
-                                                       in it again and scramble the walk */
-            continue;
+    if (!midi_local_held(t, x)) {
         input_on(t, x, vel);
         midi_out_event(0x09u | (0x90u | mc) << 8 | x << 16 | vel << 24);
     }
     in_key = 0;
-    kb_chn[k] = (uint8_t)n;
+    kb_chn[k] = 1;
     last_note = kb_note[k];                         /* (step entry, the SAMPLE zone: the key's note) */
 }
 
-/* key k is up: the notes it started end, but those another key still holds */
+/* key k is up: the note it started ends, unless another key holds it too */
 static void key_off(uint32_t k, track_t *t)
 {
-    uint32_t n = kb_chn[k], i, mc = trk_midi_ch(trk_index(t));
+    uint32_t x = kb_note[k], mc = trk_midi_ch(trk_index(t));
     kb_chn[k] = 0;
-    for (i = 0; i < n; i++) {
-        uint32_t x = kb_chord[k][i];
-        if (midi_local_held(t, x))
-            continue;
+    if (!midi_local_held(t, x)) {
         input_off(t, x);
         midi_out_event(0x08u | (0x80u | mc) << 8 | x << 16);
     }

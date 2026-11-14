@@ -114,33 +114,13 @@ static void midi_release(uint32_t ch, uint32_t note)
     }
 }
 
-/* a MIDI note-on (ch, note) of track t: its chord (chord.c) or the note alone. A note another key or MIDI
- * note holds already sounds: not started again */
+/* a MIDI note-on (ch, note) of track t: the note alone (2.5.24: the CHRD quality does not play from MIDI
+ * either -- it lights on the keys and the arp walks its tones). A note another key or MIDI note holds
+ * already sounds: not started again */
 static void midi_play(track_t *t, uint32_t ch, uint32_t note, uint32_t vel)
 {
-    uint8_t nn[CHORD_MAX];
-    uint32_t n = chord_build(t, note, nn), i, f = 0;
-    if (n > 1u || nn[0] != note)
-        for (f = 0; f < MCHORD_N && mchord[f].id; f++)
-            ;
-    if (f == MCHORD_N) {                          /* no room to keep a chord: the note alone */
-        n = 1;
-        nn[0] = (uint8_t)note;
-    }
-    for (i = 0; i < n; i++)
-        if (!midi_note_held(t, nn[i]) && !midi_local_held(t, nn[i])
-            && !(i && t->p[P_AMODE]))             /* ARP on: only the root enters the input (the arp's
-                                                     list is the chord, arp_list 2.5.22) */
-            input_on(t, nn[i], vel);
-    if (n > 1u || nn[0] != note) {
-        mchord_t *m = &mchord[f];
-        m->ch = (uint8_t)ch;
-        m->src = (uint8_t)note;
-        m->n = (uint8_t)n;
-        for (i = 0; i < n; i++)
-            m->note[i] = nn[i];
-        m->id = (uint8_t)(trk_index(t) + 1u);
-    }
+    if (!midi_note_held(t, note) && !midi_local_held(t, note))
+        input_on(t, note, vel);
 }
 
 static void midi_note_event(uint32_t ch, uint32_t note, uint32_t vel)
