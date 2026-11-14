@@ -318,14 +318,17 @@ static int keys_own(void)
 /* Discussion #127 (1.2): MENU > SCALE LEDS ON, the keys of the selected track's scale (ROOT, SCALE), bit k = key k, as
  * the keys play now: the note a key gives with TRN (QNT SNAP / SEQ: the key's own note; the others round down onto
  * the scale); QNT WHITE every white key (they walk the scale; the black ones are silent). *root: the keys of the
- * scale's root. None where the engine maps the keys itself (DRUM's GM map, the slices): 0 there, and OFF */
+ * scale's root. With the track's CHRD on, the chord assistant: the chord's tones on the ROOT light instead (2.5.22),
+ * the root blinking as ever. None where the engine maps the keys itself (DRUM's GM map, the slices): 0 there, and OFF */
 static uint32_t scale_leds(uint32_t *root)
 {
     const track_t *t = TSEL;
     const engine_t *e = ENGINES[eng_idx(t->eng_req)];
-    uint32_t k, m = 0, r = 0, mask = scale_mask(t), note;
+    uint32_t k, m = 0, r = 0, mask = chord_key_mask(t), note;
     int32_t pc;
     *root = 0;
+    if (!mask)
+        mask = scale_mask(t);
     if (!(ui_rec_prefs & (PREF_SCALE_LEDS >> 8)))
         return 0;
     for (k = 0; k < 27u; k++) {

@@ -753,15 +753,15 @@ static void fa_restore_dialog(void)
 /* ARP: a pop-up like SAVE's. KNOB 1..4 are MODE, RATE, OCT, GATE; SELECT picks a line (the fifth is the tempo) and
  * ALGORITHM changes it; ARP again, HOME or a page button closes it. The arpeggio goes on after closing */
 static uint8_t fa_ar;                                     /* 1: the pop-up is open */
-static uint8_t fa_ar_row;                                 /* 0 MODE, 1 RATE, 2 OCT, 3 GATE, 4 HOLD, 5 BPM */
-#define FA_AR_N 6u
-static const uint8_t FA_AR_ID[5] = {P_AMODE, P_ARATE, P_AOCT, P_AGATE, P_AHOLD};
-static const char *const FA_AR_LB[FA_AR_N] = {"MODE", "RATE", "OCTAVES", "GATE", "HOLD", "TEMPO"};
+static uint8_t fa_ar_row;                                 /* 0 MODE, 1 CHORD, 2 RATE, 3 OCT, 4 GATE, 5 HOLD, 6 BPM */
+#define FA_AR_N 7u
+static const uint8_t FA_AR_ID[6] = {P_AMODE, P_CHRD, P_ARATE, P_AOCT, P_AGATE, P_AHOLD};
+static const char *const FA_AR_LB[FA_AR_N] = {"MODE", "CHORD", "RATE", "OCTAVES", "GATE", "HOLD", "TEMPO"};
 
 static void fa_ar_turn(uint32_t row, int32_t s)
 {
     track_t *t = TSEL;
-    if (row < 5u) {
+    if (row < 6u) {
         const param_desc_t *d = track_desc(t, FA_AR_ID[row]);
         int16_t *vp = &t->p[FA_AR_ID[row]];
         *vp = (int16_t)param_turn(d, *vp, s);
@@ -795,11 +795,11 @@ static void fa_ar_dialog(void)
     for (i = 0; i < FA_AR_N; i++) {
         char val[16];
         const char *un;
-        if (i < 5u)
+        if (i < 6u)
             param_format(track_desc(t, FA_AR_ID[i]), t->p[FA_AR_ID[i]], val, &un);
         else
             fmt_int(val, song.g[G_BPM]);
-        fa_line(62 + (int32_t)i * 22, FA_AR_LB[i], val, i == fa_ar_row);
+        fa_line(50 + (int32_t)i * 22, FA_AR_LB[i], val, i == fa_ar_row);
     }
     fa_ctext(120, 196, &AF_S, FA_SEL "  " FA_ALG "  " FA_K14 "  ARP=CLOSE", FA_MU);
 }
@@ -2465,8 +2465,8 @@ static void fa_buttons(uint32_t pressed)
             }
         }
     }
-    {   /* ARP: a tap turns the arpeggiator on / off (the button lights); held, HOLD on / off. The pop-up shows it.
-         * With the pop-up closed and the arpeggiator on, a tap only opens the pop-up: the arpeggio stays on */
+    {   /* ARP: a tap turns the arpeggiator on / off (the button lights); held, the pop-up (the chord assistant:
+         * its CHORD row). With the pop-up closed and the arpeggiator on, a tap only opens the pop-up */
         uint32_t down = (fm1_in.buttons >> panel.btn[B_ARP]) & 1u;
         if ((pressed >> panel.btn[B_ARP]) & 1u) {
             fa_arp_down = 1;
@@ -2488,9 +2488,9 @@ static void fa_buttons(uint32_t pressed)
                     }
                     fa_arp_show();
                 }
-            } else if (!fa_arp_done && (uint32_t)(fm1_ms - fa_arp_t0) >= 450u) {   /* the hold */
+            } else if (!fa_arp_done && (uint32_t)(fm1_ms - fa_arp_t0) >= 450u) {   /* the hold: the pop-up (the
+                                    * chord assistant: its CHORD row; HOLD has its own row) */
                 fa_arp_done = 1;
-                TSEL->p[P_AHOLD] = (int16_t)!TSEL->p[P_AHOLD];
                 fa_arp_show();
             }
         }
@@ -3137,7 +3137,7 @@ static void fa_input(void)
             fa_ar_row = (uint8_t)((fa_ar_row + FA_AR_N + (s > 0 ? 1u : FA_AR_N - 1u)) % FA_AR_N);
         if ((s = panel_enc(EN_ALGO)) != 0) {
             fa_ar_turn(fa_ar_row, s);
-            if (fa_ar_row == 5u)                          /* TEMPO: the TAP TEMPO pop-up opens */
+            if (fa_ar_row == 6u)                          /* TEMPO: the TAP TEMPO pop-up opens */
                 fa_tp_begin();
         }
         for (k = 0; k < 4u; k++)
@@ -3180,8 +3180,15 @@ static void fa_input(void)
     if ((s = panel_enc(EN_SELECT)) != 0)
         fa_select(s);
     fmg_force_page = (int8_t)fa_page;
-    if ((s = panel_enc(EN_ALGO)) != 0)
-        fmg_algo(s);
+    if ((s = panel_enc(EN_ALGO)) != 0) {
+        if ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u) {  /* OCT- held: the knob is the global transpose
+                                    * (GLO > GLOBAL > TRANSPOSE's value; the AP panel keeps its own use) */
+            glo_transpose = clamp(glo_transpose + s, -12, 12);
+            panic_req |= 1u;                    /* the notes held now sound elsewhere: none may hang */
+            fa_cfg_dirty = 1;
+        } else
+            fmg_algo(s);
+    }
     for (k = 0; k < 4u; k++)
         if ((s = panel_enc(EN_K1 + k)) != 0) {
 #if BOARD_SMK37

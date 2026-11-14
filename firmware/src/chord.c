@@ -13,13 +13,27 @@
  * engine that maps the keys itself) ignores CHRD. Every source keeps the notes it started (kb_chord for a
  * key, mchord for a MIDI note) and its release ends exactly those, so CHRD / VOIC changed while it is held
  * leave nothing hanging. A note several sources hold sounds once and ends with the last of them. */
-enum { CH_OFF, CH_DIA3, CH_DIA7, CH_MAJ, CH_MIN, CH_DOM7, CH_MAJ7, CH_MIN7, CH_SUS4, CH_POW };
+enum { CH_OFF, CH_DIA3, CH_DIA7, CH_MAJ, CH_MIN, CH_DOM7, CH_MAJ7, CH_MIN7, CH_SUS4, CH_POW,
+       CH_AUG, CH_DIM, CH_DIM7, CH_M7B5, CH_SUS2, CH_ADD9, CH_6, CH_M6, CH_9, CH_M9, CH_13,
+       CH_LAST };
 enum { VC_CLOSE, VC_OPEN, VC_INV1, VC_INV2, VC_BASS };
-#define CHORD_MAX 4u
+#define CHORD_MAX 5u
 #define MCHORD_N 24u                     /* MIDI notes held as chords at once (more: their root alone) */
 
-static const int8_t CHORD_SHAPE[CH_POW - CH_MAJ + 1][CHORD_MAX] = {
-    {0, 4, 7, -1}, {0, 3, 7, -1}, {0, 4, 7, 10}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 5, 7, -1}, {0, 7, 12, -1},
+static const int8_t CHORD_SHAPE[CH_LAST - CH_MAJ - 1u][CHORD_MAX] = {
+    {0, 4, 7, -1, -1}, {0, 3, 7, -1, -1}, {0, 4, 7, 10, -1}, {0, 4, 7, 11, -1}, {0, 3, 7, 10, -1},
+    {0, 5, 7, -1, -1}, {0, 7, 12, -1, -1},
+    {0, 4, 8, -1, -1},                                 /* AUG */
+    {0, 3, 6, -1, -1},                                 /* DIM */
+    {0, 3, 6, 9, -1},                                  /* DIM7 (the fully diminished seventh) */
+    {0, 3, 6, 10, -1},                                 /* M7B5 (the half-diminished seventh) */
+    {0, 2, 7, -1, -1},                                 /* SUS2 */
+    {0, 4, 7, 14, -1},                                 /* ADD9 */
+    {0, 4, 7, 9, -1},                                  /* 6 */
+    {0, 3, 7, 9, -1},                                  /* M6 */
+    {0, 4, 7, 10, 14},                                 /* 9 */
+    {0, 3, 7, 10, 14},                                 /* M9 */
+    {0, 4, 10, 14, 21},                                /* 13 (root 3 b7 9 13: the practical voicing) */
 };
 
 static uint8_t kb_chord[27][CHORD_MAX], kb_chn[27];   /* the notes key k started (kb_chn 0: none) */
@@ -67,6 +81,20 @@ static uint32_t chord_tones(const track_t *t, uint32_t mode, int32_t *root, int3
     }
 }
 
+/* the track's chord built on the track's ROOT as a pitch-class mask (bit i: i semitones above the root),
+ * 0 with CHRD OFF -- the keyboard app's chord assistant lights these keys (ui_input.c scale_leds) */
+static uint32_t chord_key_mask(const track_t *t)
+{
+    uint32_t mode = (uint32_t)t->p[P_CHRD], n, i, m = 0;
+    int32_t iv[CHORD_MAX + 1u], r = t->p[P_ROOT];
+    if (!mode || mode >= CH_LAST)
+        return 0;
+    n = chord_tones(t, mode, &r, iv);
+    for (i = 0; i < n; i++)
+        m |= 1u << (uint32_t)((iv[i] % 12 + 12) % 12);
+    return m;
+}
+
 /* the chord on note `root` as track t plays it now -> out (ascending), the number of notes (1..CHORD_MAX);
  * *rp its root, *maskp its tones above the root (bit i: i semitones; 0 = no chord). The root alone when CHRD
  * is OFF, on a kit, or for MONO / LEGATO / UNISON (their chord's root) */
@@ -77,7 +105,7 @@ static uint32_t chord_make(const track_t *t, uint32_t root, uint8_t *out, int32_
     uint16_t mask = 0;
     *rp = r;
     *maskp = 0;
-    if (!mode || mode > CH_POW || chord_kit(t)) {
+    if (!mode || mode >= CH_LAST || chord_kit(t)) {
         out[0] = (uint8_t)root;
         return 1;
     }

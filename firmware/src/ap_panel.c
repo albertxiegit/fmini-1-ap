@@ -26,10 +26,11 @@ static uint32_t ap_popup_until;
  * printed letters clear for the AP button overlay). The top screen row takes
  * the leftmost whites F3 G3 A3 B3 C4 D4 (keys 0 2 4 6 7 9); the bottom screen
  * row takes the rightmost whites B4 C5 D5 E5 F5 (keys 18 19 21 23 24) plus
- * FLC on E4 (key 11, in place of the dropped MACH): the bottom row reads the
- * same way on the screen and on the keyboard. The bridge's NOTE_EVENTS map
- * note 48 + key index in the same switch order (2.5.20: BC and MACH cut). */
-static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 18, 19, 21, 23, 24, 11};
+ * FLC on G5 (key 26, the rightmost white, in place of the dropped MACH): the
+ * bottom row reads the same way on the screen and on the keyboard (2.5.22: FLC
+ * was on E4). The bridge's NOTE_EVENTS map note 48 + key index in the same
+ * switch order (2.5.20: BC and MACH cut). */
+static const uint8_t AP_KEYS[AP_SW_N] = {0, 2, 4, 6, 7, 9, 18, 19, 21, 23, 24, 26};
 static const uint8_t AP_CC[4] = {20, 21, 22, 23};               /* HDG ALT SPD VS */
 static const uint8_t AP_CC2[3] = {24, 25, 26};                  /* SELECT PRESET ALGO (2.5.19) */
 static const uint8_t AP_ENC2[3] = {EN_SELECT, EN_PRESET, EN_ALGO};   /* the encoders, in the CC2 order */

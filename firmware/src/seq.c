@@ -395,6 +395,28 @@ static uint32_t arp_list(const track_t *t, uint32_t *list, uint32_t *cnt)
                 list[j] = list[j - 1];
                 list[j - 1] = x;
             }
+    if (n && t->p[P_CHRD]) {                      /* CHRD: the arp walks the chord's tones (2.5.22): each held
+                                                   * note expands to its chord (VOIC respected), each tone once */
+        uint8_t cc[CHORD_MAX];
+        int32_t rp;
+        uint16_t cm;
+        uint32_t base[64], cn, bn = 0, s2;
+        for (i = 0; i < n; i++) {
+            cn = chord_make(t, list[i], cc, &rp, &cm);
+            for (j = 0; j < cn && bn < 64u; j++) {
+                for (s2 = 0; s2 < bn && base[s2] != cc[j]; s2++)
+                    ;
+                if (s2 == bn)
+                    base[bn++] = cc[j];
+            }
+        }
+        if (bn) {
+            for (i = 0; i < bn; i++)
+                list[i] = base[i];
+            n = bn;
+            *cnt = bn;
+        }
+    }
     for (o = 0; o < (uint32_t)t->p[P_AOCT]; o++)
         for (i = 0; i < n && len < 64u; i++)
             list[len++] = clamp((int32_t)list[i] + 12 * (int32_t)o, 0, 127);
