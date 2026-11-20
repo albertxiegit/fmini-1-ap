@@ -20,6 +20,7 @@ static uint32_t ap_hold_t0;                 /* HOME's press edge */
 static uint8_t ap_hold_done;                /* this press already toggled */
 static uint16_t ap_popup;                   /* 0xffff none; 0..3 a knob, 12+i a switch */
 static uint32_t ap_popup_until;
+static uint32_t ap_target_hold;             /* a knob was turned: keep showing AP targets, not live actuals */
 
 #define AP_SW_N 12u
 /* the switches sit on 12 of the 16 white keys (the black keys keep their
@@ -172,7 +173,8 @@ void ap_input(void)
             ++ap_state.revision;
         }
         ap_popup = (uint16_t)k;
-        ap_popup_until = fm1_ms + 700u;
+        ap_popup_until = fm1_ms + 3500u;             /* the target the user just set stays up long enough to read */
+        ap_target_hold = fm1_ms + 8000u;             /* .. and the normal view shows targets, not moving actuals */
     }
     /* the switches stream note on/off on channel 1; the bridge maps their
      * notes to simulator events. Offline, a press toggles the local flag so
@@ -280,8 +282,11 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
     }
     /* normal view: one value per row, auto-flipped every 5 s between the
      * bridge's live flight value (green) and the AP target (white); offline,
-     * the targets in white only (2.5.20) */
-    unsigned show_act = actual && (fm1_ms / 5000u) & 1u;
+     * the targets in white only (2.5.20). 2.5.26: after a knob turn the targets
+     * stay for 8 s -- flipping to the live actual value right after the turn
+     * looked exactly like the number bouncing back to its old value */
+    unsigned show_act = actual && (uint32_t)(fm1_ms - ap_target_hold) >= 0x80000000u
+                            && ((fm1_ms / 5000u) & 1u);
     uint16_t col = show_act ? AP_C_GRN : AP_C_NUM;
     ap_tx(8, 4, &AF_S, "AP PANEL", AP_C_OFF);
     ap_tr(232, 4, &AF_S, online ? "BRIDGE" : "OFFLINE", online ? AP_C_OK : AP_C_BAD);
