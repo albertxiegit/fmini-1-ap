@@ -214,30 +214,31 @@ void ap_leds_mirror(uint8_t *nl, uint8_t *nd)
         led_put(nl, id, on);
         led_put(nd, id, !on);
     }
-    /* Welcome flash on entering the AP panel: mimic an aircraft's exterior
-     * lights coming alive. PLAY's green (beacon, 2 slow flashes), REC's red
-     * (anti-collision, 2 flashes), then EDIT and GLO white (strobe, 2 quick
-     * flashes). 1.2 s total, once per entry; the normal AP LEDs above stay on. */
+    /* Aircraft exterior lights, looping for as long as the AP panel is active.
+     * Two independent timelines:
+     *  - PLAY green + REC red (8.8 s cycle): green flashes twice, 3 s quiet,
+     *    red flashes twice, 3 s quiet, repeat (the aircraft's beacon pair).
+     *  - EDIT + GLO white (5 s cycle): a double strobe flash every 5 s,
+     *    unrelated to the green/red pattern.
+     * A "flash" is 350 ms on / 350 ms off (white 120/120), so the two blinks
+     * are clearly separated instead of a blur. */
     {
         uint32_t e = fm1_ms - ap_enter_ms;
-        if (e < 1200u) {
-            uint32_t green, red, white;
-            /* two flashes in a 400 ms slot: lit in the first/second 100 ms */
-            green = (e < 400u) && ((e % 200u) < 100u);
-            red   = (e >= 400u && e < 800u) && (((e - 400u) % 200u) < 100u);
-            /* two quick flashes in a 400 ms slot: lit in the first/second 60 ms */
-            white = (e >= 800u) && (((e - 800u) % 200u) < 60u);
-            if (green) {
+        uint32_t gr = e % 8800u;             /* green+red sequence: 1.4s + 3s + 1.4s + 3s */
+        uint32_t wh = e % 5000u;             /* white strobe, its own clock */
+        /* green: 0-350 on, 350-700 off, 700-1050 on, 1050-1400 off */
+        if (gr < 1400u && ((gr % 700u) < 350u)) {
 #if !BOARD_SMK37                /* the FM-1's PLAY has a second green LED */
-                nl[LED_PLAY_GREEN >> 3] |= (uint8_t)(1u << (LED_PLAY_GREEN & 7u));
+            nl[LED_PLAY_GREEN >> 3] |= (uint8_t)(1u << (LED_PLAY_GREEN & 7u));
 #endif
-            }
-            if (red)
-                led_put(nl, panel.btn[B_REC], 1);
-            if (white) {
-                led_put(nl, panel.btn[B_EDIT], 1);
-                led_put(nl, panel.btn[B_GLO], 1);
-            }
+        }
+        /* red: 3 s after the green finishes (1400+3000), same double flash */
+        if (gr >= 4400u && gr < 5800u && (((gr - 4400u) % 700u) < 350u))
+            led_put(nl, panel.btn[B_REC], 1);
+        /* white: two 120 ms flashes at the top of every 5 s period */
+        if (wh < 480u && ((wh % 240u) < 120u)) {
+            led_put(nl, panel.btn[B_EDIT], 1);
+            led_put(nl, panel.btn[B_GLO], 1);
         }
     }
 }
