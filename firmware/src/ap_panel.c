@@ -21,6 +21,7 @@ static uint8_t ap_hold_done;                /* this press already toggled */
 static uint16_t ap_popup;                   /* 0xffff none; 0..3 a knob, 12+i a switch */
 static uint32_t ap_popup_until;
 static uint32_t ap_target_hold;             /* a knob was turned: keep showing AP targets, not live actuals */
+static uint32_t ap_enter_ms;                /* AP mode entry: play the aircraft-light welcome flash */
 
 #define AP_SW_N 12u
 /* the switches sit on 12 of the 16 white keys (the black keys keep their
@@ -99,6 +100,8 @@ static void ap_set_mode(uint8_t on)
     if (on == ap_on)
         return;
     ap_on = on;
+    if (on)
+        ap_enter_ms = fm1_ms;               /* start the aircraft-light flash on entry */
     fm1_notes_mute = on;                    /* the keys are switches here, not notes (seq.c keyboard_block) */
     ui.force = 1;                           /* the screen switches with the mode */
 }
@@ -210,6 +213,32 @@ void ap_leds_mirror(uint8_t *nl, uint8_t *nd)
         int on = (ap_state.flags >> k) & 1u;
         led_put(nl, id, on);
         led_put(nd, id, !on);
+    }
+    /* Welcome flash on entering the AP panel: mimic an aircraft's exterior
+     * lights coming alive. PLAY's green (beacon, 2 slow flashes), REC's red
+     * (anti-collision, 2 flashes), then EDIT and GLO white (strobe, 2 quick
+     * flashes). 1.2 s total, once per entry; the normal AP LEDs above stay on. */
+    {
+        uint32_t e = fm1_ms - ap_enter_ms;
+        if (e < 1200u) {
+            uint32_t green, red, white;
+            /* two flashes in a 400 ms slot: lit in the first/second 100 ms */
+            green = (e < 400u) && ((e % 200u) < 100u);
+            red   = (e >= 400u && e < 800u) && (((e - 400u) % 200u) < 100u);
+            /* two quick flashes in a 400 ms slot: lit in the first/second 60 ms */
+            white = (e >= 800u) && (((e - 800u) % 200u) < 60u);
+            if (green) {
+#if !BOARD_SMK37                /* the FM-1's PLAY has a second green LED */
+                nl[LED_PLAY_GREEN >> 3] |= (uint8_t)(1u << (LED_PLAY_GREEN & 7u));
+#endif
+            }
+            if (red)
+                led_put(nl, panel.btn[B_REC], 1);
+            if (white) {
+                led_put(nl, panel.btn[B_EDIT], 1);
+                led_put(nl, panel.btn[B_GLO], 1);
+            }
+        }
     }
 }
 
