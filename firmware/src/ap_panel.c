@@ -285,7 +285,7 @@ static void ap_scene(void)                  /* absolute coordinates 0..239 */
      * the targets in white only (2.5.20). 2.5.26: after a knob turn the targets
      * stay for 8 s -- flipping to the live actual value right after the turn
      * looked exactly like the number bouncing back to its old value */
-    unsigned show_act = actual && (uint32_t)(fm1_ms - ap_target_hold) >= 0x80000000u
+    unsigned show_act = actual && (uint32_t)(fm1_ms - ap_target_hold) < 0x80000000u
                             && ((fm1_ms / 5000u) & 1u);
     uint16_t col = show_act ? AP_C_GRN : AP_C_NUM;
     ap_tx(8, 4, &AF_S, "AP PANEL", AP_C_OFF);
